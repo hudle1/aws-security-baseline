@@ -75,6 +75,6 @@ I write `docs/design-decisions.md` myself. You may add a "Questions for David" s
 2. Architecture + threat model
 3. Guardrails stack
 4. CloudTrail
-5. GuardDuty / Security Hub / Config
+5. GuardDuty / Security Hub / Config. Config resource types must include at least `AWS::S3::Bucket`, `AWS::KMS::Key`, `AWS::CloudTrail::Trail` and the IAM types (`AWS::IAM::Role`, `AWS::IAM::Policy`, `AWS::IAM::User`, `AWS::IAM::Group`), because the threat model and David's interview answers depend on Config recording them.
 6. CI + tests
 7. Deploy / verify / screenshots / teardown / README. Run Prowler (installed with pipx) under a read-only SecurityAudit/ViewOnlyAccess SSO profile for an independent CIS report, saved to `docs/compliance/` with the account ID redacted.

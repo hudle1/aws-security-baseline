@@ -44,17 +44,19 @@ How I'd sequence these controls in a real company. **v1 of this repo demonstrate
 
 Target: CIS AWS Foundations Benchmark **v5.0.0** (latest Security Hub supports, confirmed 2026-11-15). Security Hub control IDs are listed; whether each is part of v5.0.0 is to **verify in Phase 5** against the enabled standard.
 
-| Security Hub control | CIS requirement | Why it fails in v1 | Tier |
-| --- | --- | --- | --- |
-| CloudWatch.1–14 (verify they exist in the current CIS version) | Metric filters + alarms for root use, IAM/CloudTrail/KMS/S3 policy changes, etc. | Decision e: CloudWatch Logs integration deferred | 1 |
-| CloudTrail.5 | Trail integrated with CloudWatch Logs | Decision e | 1 |
-| S3.22 / S3.23 (verify) | Object-level logging for S3 write / read events | Decision d: data events off; GuardDuty S3 Protection covers detection | 1 |
-| Config.1 / CIS "Config in all regions" (verify) | Config recording all resources in all regions | Limited resource types, us-east-1 only (cost) | 1 |
-| IAM.28 / Access Analyzer "all regions" (verify) | Access Analyzer in every region | us-east-1 only unless Q-f changes it | 1 |
-| CloudTrail.7 (verify) | Server access logging on the CloudTrail bucket | Needs a second bucket; candidate to add in Phase 4 | 1 |
-| EC2.2 / EC2.6 (verify) | Default security group restricts all traffic; VPC flow logs | Default VPCs exist in the sandbox; decide in Phase 5 (restrict default SGs vs accept) | 1 |
-| IAM.6 (verify) | Hardware MFA for root | Root uses virtual/passkey MFA (verify which) | 1 |
-| IAM.18 (verify) | Support role exists (AWSSupportAccess) | Not created; cheap candidate for guardrails in Phase 3 | 0 candidate |
+Dates are **provisional** (set 2026-11-15); Phase 5 confirms which controls actually fail and updates the rows. Tier 1 dates use the 90-day maximum from the risk-acceptance template.
+
+| Security Hub control | CIS requirement | Why it fails in v1 | Tier | Compensating control | Target date |
+| --- | --- | --- | --- | --- | --- |
+| CloudWatch.1–14 (verify they exist in v5.0.0) | Metric filters + alarms for root use, IAM/CloudTrail/KMS/S3 policy changes, etc. | Decision e: CloudWatch Logs integration deferred | 1 | **Partially compensated** by GuardDuty: root credential use (`Policy:IAMUser/RootCredentialUsage`) and CloudTrail stopped (`Stealth:IAMUser/CloudTrailLoggingDisabled`). **Not covered:** security group changes, NACL changes, console login failures, IAM policy changes (also route table, VPC, Config, KMS and bucket policy changes) | 2027-02-13 |
+| CloudTrail.5 | Trail integrated with CloudWatch Logs | Decision e | 1 | Logs are in S3 and searchable on demand (Athena / `lookup-events`); no real-time alerting | 2027-02-13 |
+| S3.22 / S3.23 (verify) | Object-level logging for S3 write / read events | Decision d: data events off | 1 | GuardDuty S3 Protection **may flag** anomalous object access or deletes (anomaly-based, needs a baseline) | 2027-02-13 |
+| Config.1 / CIS "Config in all regions" (verify) | Config recording all resources in all regions | Limited resource types, us-east-1 only (cost) | 1 | Config records the security-relevant types in us-east-1; multi-region CloudTrail logs API calls in every region | 2027-02-13 |
+| IAM.28 / Access Analyzer "all regions" (verify) | Access Analyzer in every region | us-east-1 only unless Q-f changes it | 1 | The us-east-1 analyzer covers global IAM roles; regional resources in other regions are uncovered | Phase 5 (Q-f) |
+| CloudTrail.7 (verify) | Server access logging on the CloudTrail bucket | Needs a second bucket | 1 | Bucket-level actions (`PutBucketPolicy`, `DeleteBucket`) are CloudTrail management events; object integrity via log file validation (when `validate-logs` runs) | Phase 4 (decide) |
+| EC2.2 / EC2.6 (verify) | Default security group restricts all traffic; VPC flow logs | Default VPCs exist in the sandbox | 1 | No workloads run in default VPCs; GuardDuty analyzes VPC Flow Logs independently | Phase 5 (decide) |
+| IAM.6 (verify) | Hardware MFA for root | Root uses virtual/passkey MFA (verify which) | 1 | Root has MFA and no access keys; GuardDuty alerts on root credential use | 2027-02-13 |
+| IAM.18 (verify) | Support role exists (AWSSupportAccess) | Not created | 0 candidate | None needed meanwhile (no users to delegate support to); cheap fix | Phase 3 |
 
 ## Risk acceptance template
 
