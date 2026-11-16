@@ -6,10 +6,11 @@ Terraform baseline for a personal AWS sandbox (AWS CLI profile `sandbox-admin`, 
 v1 scope:
 - CloudTrail: multi-region, KMS-encrypted, log file validation
 - GuardDuty
-- Security Hub: AWS Foundational Security Best Practices only; default standards off
+- Security Hub: enable BOTH AWS Foundational Security Best Practices AND the CIS AWS Foundations Benchmark (latest version Security Hub supports; verify in Phase 5). Default standards still off; we enable these two explicitly in Terraform.
 - AWS Config: limited resource types, daily recording
 - IAM password policy
 - Account-level S3 Block Public Access
+- IAM Access Analyzer (external access analyzer, account zone of trust)
 - AWS Budgets: $10 alarm (actual + forecasted)
 - One-command teardown
 - Cost note
@@ -20,7 +21,7 @@ v1 scope:
 
 ## Architecture
 Two root modules:
-- `infra/guardrails`: free, persistent (budget, password policy, S3 Block Public Access)
+- `infra/guardrails`: free, persistent (budget, password policy, S3 Block Public Access, IAM Access Analyzer)
 - `infra/baseline`: cost-generating (CloudTrail + KMS + bucket, GuardDuty, Security Hub, Config)
 
 Teardown targets:
@@ -48,7 +49,10 @@ I write `docs/design-decisions.md` myself. You may add a "Questions for David" s
 
 ## Repo layout
 - `README.md`
-- `docs/{architecture,threat-model,design-decisions}.md`
+- `docs/{architecture,threat-model,design-decisions,control-tiers,compliance-mapping}.md`
+- `docs/compliance/` (Prowler CIS report, account ID redacted)
+- `docs/runbook-compromised-credentials.md` (one page, written in Phase 7)
+- Any CIS control that fails by design is listed in `docs/control-tiers.md` and `docs/compliance-mapping.md` with its tier and reason.
 - `infra/{guardrails,baseline}/`
 - `tests/` (terraform test)
 - `scripts/verify.ps1` (post-deploy API checks = test evidence + demo)
@@ -73,4 +77,4 @@ I write `docs/design-decisions.md` myself. You may add a "Questions for David" s
 4. CloudTrail
 5. GuardDuty / Security Hub / Config
 6. CI + tests
-7. Deploy / verify / screenshots / teardown / README
+7. Deploy / verify / screenshots / teardown / README. Run Prowler (installed with pipx) under a read-only SecurityAudit/ViewOnlyAccess SSO profile for an independent CIS report, saved to `docs/compliance/` with the account ID redacted.

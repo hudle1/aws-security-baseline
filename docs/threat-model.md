@@ -1,3 +1,55 @@
 # Threat Model
 
-(stub: written in Phase 2)
+Method: STRIDE. Scope: the baseline itself (the controls an attacker would target first), the tooling that deploys it, and the people and agents that touch it.
+
+## Assets
+
+| Asset | Why it matters |
+| --- | --- |
+| CloudTrail logs + digest files | The evidence of every API call; first target for an attacker covering tracks |
+| KMS keys (CloudTrail, Config) | Losing a key = losing the logs it encrypted |
+| Detective services (GuardDuty, Security Hub, Config) | If disabled, attacks go unseen |
+| Guardrails (budget, password policy, S3 BPA) | Account-wide safety nets; S3 BPA backstops the log bucket |
+| Local Terraform state | Holds resource IDs and ARNs; tampered state drives destructive plans |
+| SSO session on David's laptop | `AdministratorAccess` to the sandbox until it expires |
+| Repo + CI | Changes here become infrastructure |
+
+## Actors
+
+External attacker with stolen credentials · malicious insider / compromised admin session · compromised upstream dependency (Terraform provider, pre-commit hook, GitHub Action) · Claude Code acting on a bad instruction or prompt injection · David making a mistake.
+
+## Assumptions
+
+Single account, no AWS Organizations (no SCPs, no separate log-archive account). Root has MFA and no access keys. David's SSO role is `AdministratorAccess`, so **controls in this account cannot stop a fully compromised admin**; v1 aims to **detect** that case and to **prevent** everything short of it.
+
+## Threats
+
+| # | STRIDE | Threat | Component | Mitigation in v1 | Residual risk / production improvement |
+| --- | --- | --- | --- | --- | --- |
+| 1 | R | Attacker stops or deletes the trail, or updates it (single-region, other bucket) before acting | CloudTrail | GuardDuty `Stealth:IAMUser/CloudTrailLoggingDisabled`; Security Hub CloudTrail controls; multi-region trail | No real-time alarm (CIS metric alarms are Tier 1). Prod: org trail owned by the management account, SCP denying `cloudtrail:StopLogging/DeleteTrail/UpdateTrail` |
+| 2 | T | Admin deletes or edits log files to hide their tracks *(David)* | Log bucket | Log file validation (hourly digest chain shows changed or missing files) **when `validate-logs` runs** (in `verify.ps1`); bucket versioning keeps prior copies | Detect-only: an admin can delete versions and digests (a chain gap remains visible). Prod: compliance-mode Object Lock in a separate log-archive account |
+| 3 | I | Bucket made public or read by an unauthorized principal, exposing IPs, identities and request details (a map of the account) *(David)* | Log bucket, KMS | Bucket-level + account-level S3 BPA; reads also need `kms:Decrypt` on the CloudTrail key; TLS-only bucket policy | KMS doesn't stop admins (default key policy delegates to IAM). Prod: key policy without IAM delegation for decrypt; dedicated log-reader role in log-archive account |
+| 4 | D | CloudTrail KMS key scheduled for deletion or disabled, so old logs can't be decrypted and new logs can't be written *(David)* | KMS (CloudTrail) | 7-day deletion window (cancellable); event recorded in CloudTrail; Security Hub **KMS.3**; trail `LatestDeliveryError` | No real-time alert. Tier 1: EventBridge rule → SNS on `ScheduleKeyDeletion`, `DisableKey`, `PutKeyPolicy` |
+| 5 | E / D | Key policy changed to grant decrypt to an attacker, or to lock out CloudTrail/Config | KMS (both) | Separate keys per service (decision b) limit blast radius; policy-lockout safety check left on; changes logged | Same as #4. Prod: keys managed only by a break-glass role, change alerts |
+| 6 | S | **Confused deputy:** another account's trail or Config writes into our bucket via the shared service principal | Bucket policy | Bucket policy pins `aws:SourceArn` (this trail) and `aws:SourceAccount`; each service limited to its own prefix (decision a) | Low. Verified by checkov/tflint in Phase 6 |
+| 7 | T / D | Bucket policy edited to deny CloudTrail writes (silent logging outage) or to grant the attacker access | Bucket policy | Change logged in CloudTrail; Security Hub S3 controls; Terraform drift visible in `plan` | No real-time alert on `PutBucketPolicy`. Tier 1: EventBridge rule; Config rule for bucket policy drift |
+| 8 | R | GuardDuty disabled, or a **suppression filter** auto-archives findings (stealthier) | GuardDuty | Calls logged in CloudTrail; Security Hub GuardDuty.1; Terraform drift | Filters can be added quietly. Prod: delegated GuardDuty admin in a security account; SCP denying `guardduty:Delete*`, `CreateFilter` |
+| 9 | R | Config recorder stopped or Security Hub standards disabled | Config, Security Hub | Logged; Security Hub Config.1; Terraform drift in `plan` | Detected only when someone looks. Prod: delegated admin + SCP |
+| 10 | D | Attacker operates in a region we don't monitor (e.g. crypto miners in eu-west-1) | GuardDuty, Config, Security Hub | Multi-region trail records it; budget alarm catches the cost | **Decision pending (Phase 5):** GuardDuty in all regions vs us-east-1 only. Prod: SCP region deny |
+| 11 | D | Stolen credentials used for crypto mining or resource abuse | Account | Budget $10 actual + forecast; GuardDuty `CryptoCurrency:*` findings | Budget alerts lag by hours. Prod: anomaly detection, SCP limits on instance types |
+| 12 | D / T | **Our own teardown** (`force_destroy` + `terraform destroy`) erases every log | Terraform, Claude Code | Every destroy shows a plan and needs a human "yes"; `-auto-approve` denied; destroy is on the ask list | Acceptable in a sandbox. Prod: logs in a separate account the workload pipeline can't touch; no `force_destroy` |
+| 13 | T / I | Local state file tampered with (drives destructive plan) or leaked (exposes IDs/ARNs) | Terraform state | Gitignored; every plan reviewed before apply; laptop disk encryption | No versioning or locking. Prod: S3 backend in a separate account, versioned, KMS-encrypted, with state locking |
+| 14 | T / E | Compromised Terraform provider or module (supply chain) | Terraform | Official `hashicorp/aws` only; version pinned; `.terraform.lock.hcl` committed with hashes; no third-party modules | A malicious upstream release within the pin range. Prod: provider mirror, reviewed upgrades (Renovate) |
+| 15 | T / E | Compromised pre-commit hook or GitHub Action | Repo tooling, CI | Hooks pinned to tags; CI has **no AWS credentials** (blast radius = repo only); Actions pinned to commit SHAs (Phase 6) | Tag pins can be moved upstream. Prod: SHA pins everywhere, Dependabot for Actions |
+| 16 | E | Claude Code runs a destructive or credential-creating command (mistake or prompt injection) | Claude Code | Ask rules (apply, destroy, push, `gh api` writes, non-read AWS calls); deny rules (`-auto-approve`, `iam create-access-key/create-user`, editing its own settings); sandbox account only | Rules match command text, not a security boundary (`bash -c`, full paths). `--no-verify` deny rule pending. Prod: run Claude with a read-only SSO permission set for planning; sandboxed execution |
+| 17 | S | SSO session stolen from laptop (token cache) | Laptop, Identity Center | MFA enforced in Identity Center (verify); short session duration | Session valid until expiry. Prod: shorter sessions, device posture checks, revoke-sessions runbook |
+| 18 | T | Malicious or careless change merged into `main` | GitHub | Branch protection (PR required, no force push, admins included); push protection + gitleaks; human review | Owner token can disable protection. Prod: required CI checks, 2-person review, fine-grained tokens |
+| 19 | T | Guardrails destroyed, removing account S3 BPA that backstops the log bucket | Guardrails stack | Separate stack, never destroyed for cost; bucket has its own bucket-level BPA | Low. `destroy-all` documented as "leaving AWS entirely" only |
+
+## Top residual risks (accepted for v1)
+
+1. A compromised admin can disable or erase everything: no SCPs, no separate log-archive account.
+2. No real-time alerting on tampering (CIS metric alarms, EventBridge rules are Tier 1).
+3. Detection is single-region until the Phase 5 decision.
+
+Each accepted risk gets an entry using the template in `control-tiers.md`.
