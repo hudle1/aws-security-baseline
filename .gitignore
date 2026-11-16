@@ -46,3 +46,4 @@ terraform.rc
 *.tfvars
 !*.tfvars.example
 *.tfplan
+.claude/settings.local.json
