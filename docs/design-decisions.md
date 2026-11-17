@@ -41,3 +41,17 @@ Choice: _pending_.
 
 **Scope change: CIS in scope.**
 Security Hub enables both AWS FSBP and the CIS AWS Foundations Benchmark. Latest supported version confirmed as **v5.0.0** via `aws securityhub describe-standards` (2026-11-15); which controls v5.0.0 contains is checked in Phase 5. Default standards stay off. Prowler gives an independent CIS report in Phase 7.
+
+### Phase 3 design choices (2026-11-16)
+
+**Q-g. Should the IAM password policy force password expiry (`max_password_age`)?**
+Options: (1) set 90 days or less (satisfies Checkov `CKV_AWS_9`); (2) leave unset (never expires).
+Choice: **2, unset.**
+David's reasoning (from the code comment): NIST SP 800-63B advises against forced periodic rotation because it pushes users toward weak, predictable passwords; CIS v5.0.0 doesn't require it; Security Hub IAM.7 passes without it. `CKV_AWS_9` is skipped in `main.tf` with this justification.
+
+**Q-h. Should the imported budget keep its "exclude credits and refunds" filter?**
+The live budget `monthly-10-usd` excludes `Credit` and `Refund` records, so it measures gross usage. The Terraform draft had no matching `filter_expression`, so the first plan removed it.
+Options: (1) add the matching `filter_expression` so the import changes only the notifications (alerts track gross spend); (2) accept net-of-credits (simpler code; alerts fire later than real usage when credits exist).
+Choice: **1, keep the filter.**
+David's reasoning: gross spend, so credits can't mask a compromise-driven cost spike.
+Implementation notes: the provider requires `metrics` whenever `filter_expression` is set, so `metrics = ["UnblendedCost"]` (the live value) is also in code. `billing_view_arn` is set to the account's `primary` billing view (built from `var.account_id`) so the import doesn't change it. AWS's API reference doesn't say what omitting it does, so matching it is the safe choice, and it also keeps `plan` clean after apply.

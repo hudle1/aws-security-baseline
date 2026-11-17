@@ -47,11 +47,45 @@ State: local Terraform state (gitignored). Remote state is documented as a produ
 ## Docs ownership
 I write `docs/design-decisions.md` myself. You may add a "Questions for David" section only.
 
+## Documentation and handover
+Requirement: the repo must be handover-ready. If David left the company, someone must be able to understand and operate everything from `docs/` alone.
+
+- `docs/` is the single documentation folder. `docs/README.md` is the index and gives the reading order. Every new doc is linked from it.
+- `docs/components/<component>.md`: one per component, written in the phase that builds it. Template:
+  1. What it is
+  2. Why we have it (the threat it addresses, linked to `threat-model.md`)
+  3. Configuration (each setting and its reason)
+  4. The file that defines it
+  5. How to verify it works (exact PowerShell/CLI commands)
+  6. How to change it safely
+  7. What breaks if it's removed
+  8. Cost
+  9. Related CIS / SOC 2 controls
+- `docs/operations/`:
+  - `deploy.md`: prerequisites, access setup including SSO, step by step
+  - `teardown.md`
+  - `common-changes.md`
+  - `troubleshooting.md`: every real problem we hit and its fix (symptom, cause, fix). Append as problems occur; don't wait for phase end.
+  - `runbook-compromised-credentials.md`
+- Docs follow the same security rules as code: no real account IDs, ARNs or emails. Use placeholders such as `<ACCOUNT_ID>`.
+- Commands in docs are PowerShell and must be exact enough to copy and run. Mark any command or claim not yet verified against the live account as pending, and fix it after verification. Never document something as working that hasn't been run.
+
+## Definition of done (every phase)
+A phase is not done until:
+- the code is merged-ready, with fmt/validate/tflint/checkov clean (findings fixed, or skipped with a justification comment);
+- the component docs for everything the phase builds exist in `docs/components/` and are linked from `docs/README.md`;
+- `docs/operations/troubleshooting.md` has an entry for every real problem hit in the phase;
+- `docs/operations/` files touched by the phase (deploy, teardown, common-changes) are updated;
+- the phase's interview questions have been answered and reviewed.
+
 ## Repo layout
 - `README.md`
-- `docs/{architecture,threat-model,design-decisions,control-tiers,compliance-mapping}.md`
-- `docs/compliance/` (Prowler CIS report, account ID redacted)
-- `docs/runbook-compromised-credentials.md` (one page, written in Phase 7)
+- `docs/` is the single documentation folder (see "Documentation and handover" below):
+  - `docs/README.md` (index + reading order)
+  - `docs/{architecture,threat-model,design-decisions,control-tiers,compliance-mapping}.md`
+  - `docs/components/<component>.md`
+  - `docs/operations/{deploy,teardown,common-changes,troubleshooting,runbook-compromised-credentials}.md` (the runbook is one page, written in Phase 7)
+  - `docs/compliance/` (Prowler CIS report, account ID redacted)
 - Any CIS control that fails by design is listed in `docs/control-tiers.md` and `docs/compliance-mapping.md` with its tier and reason.
 - `infra/{guardrails,baseline}/`
 - `tests/` (terraform test)
