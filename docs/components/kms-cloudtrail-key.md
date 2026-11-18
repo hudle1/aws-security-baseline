@@ -48,13 +48,15 @@ Expected: `KeyRotationEnabled` true, `RotationPeriodInDays` 365.
 
 **Result on 2026-11-18:** exactly that.
 
-The key is enabled, with a 7-day deletion window recorded in Terraform:
+The key is enabled and customer-managed:
 
 ```powershell
 aws kms describe-key --key-id alias/baseline-cloudtrail --region us-east-1 --profile sandbox-admin --query "KeyMetadata.{State:KeyState,Manager:KeyManager,Spec:KeySpec}"
 ```
 
-Expected: `Enabled`, `CUSTOMER`, `SYMMETRIC_DEFAULT`. **Status: pending** (run before the demo; only rotation was checked on 2026-11-18).
+Expected: `Enabled`, `CUSTOMER`, `SYMMETRIC_DEFAULT`.
+
+**Result on 2026-11-18:** `State: Enabled`, `Manager: CUSTOMER`, `Spec: SYMMETRIC_DEFAULT` (`Usage: ENCRYPT_DECRYPT`). The 7-day deletion window is set in Terraform (`deletion_window_in_days`); it only applies once deletion is scheduled, so it isn't visible on a live key.
 
 Log objects use this key: see "How to verify" in [log-bucket.md](log-bucket.md).
 
@@ -71,7 +73,13 @@ New logs can no longer be written (`LatestDeliveryError` appears). Existing logs
 
 ## Cost
 
-About $1.00/month per key (prorated by the hour) plus a negligible request charge, because the bucket key cuts KMS calls. A key scheduled for deletion is not billed during the 7-day window. Rotation pricing (extra charges for retained older key versions) has **not been verified**; check the KMS pricing page before leaving the key deployed long-term.
+- **Key:** $1.00/month (prorated hourly).
+- **Rotation:** the first and second rotation of a key each add $1.00/month (prorated hourly). The increase is capped at the second rotation; later rotations are not billed. So a key that has rotated twice costs $3.00/month.
+- **When it starts:** automatic rotation is every 365 days, and the first is scheduled for one year after creation (`NextRotationDate` in `get-key-rotation-status`). A sandbox that is deployed for demos and destroyed never reaches it.
+- **Requests:** negligible, because the bucket key cuts KMS calls.
+- **Deletion:** the pricing page does not say whether a key in the 7-day pending-deletion window is billed. **Not verified.**
+
+Source: [AWS KMS pricing](https://aws.amazon.com/kms/pricing/), checked 2026-11-18. Quoted: "For KMS keys that you rotate automatically or on demand, the first and second rotation of the key adds $1/month" and "This price increase is capped at the second rotation, and any subsequent rotations will not be billed."
 
 ## Related controls
 

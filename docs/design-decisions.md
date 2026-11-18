@@ -53,11 +53,13 @@ Related finding: CloudTrail.5 (CloudWatch Logs) is CIS v5.0.0 3.4, so decision e
 
 **Q-j. Log retention.**
 Options: 90 days (cheaper, shorter evidence window); 365 days (covers a typical SOC 2 audit window and slow investigations).
-Choice made in code: **365 days for current objects, 30 days for noncurrent versions** (variables `log_retention_days`, `noncurrent_retention_days`; the first has a 90-day minimum). Digest files expire on the same schedule, so `validate-logs` only works inside that window. David to confirm or change this in the write-up.
+Choice: **365 days for current objects, 30 days for noncurrent versions** (variables `log_retention_days`, `noncurrent_retention_days`; the first has a 90-day minimum). **Confirmed by David 2026-11-18.**
+David's reasoning: covers a typical audit window and slow investigations, for pennies. Digest files expire on the same schedule, so `validate-logs` only works inside that window.
 
 **Q-k. Who may decrypt CloudTrail logs?**
 Options: (1) AWS's documented pattern: any principal in this account, limited to CloudTrail-encrypted data by encryption context; (2) a named log-reader role only.
-Choice made in code: **1** (sandbox with one admin). Trade-off: it grants decrypt without needing an IAM allow. Production should use option 2 (threat model #3). David to confirm or change this in the write-up.
+Choice: **1, AWS's documented account-wide pattern. Confirmed by David 2026-11-18.**
+David's reasoning: S3 read access is still required as a second lock, because reading a log needs both S3 permissions and `kms:Decrypt`. Trade-off: the key statement grants decrypt without needing an IAM allow. Production improvement: a named log-reader role (threat model #3).
 
 ### Phase 3 design choices (2026-11-16)
 
