@@ -122,7 +122,11 @@ A phase is not done until:
      - GuardDuty findings with severity >= 7.
      - New active IAM Access Analyzer findings.
    - Limits to document, not hide: us-east-1 only (EventBridge rules work only in the region where they are created); the API-call rules depend on the trail running, because EventBridge only receives CloudTrail-sourced events while a trail with logging is on (whether the `StopLogging` call itself is still delivered is verified in Phase 5 by testing, not assumed); a compromised admin can still delete the rules or the topic (detect-only, like everything in v1); GuardDuty and Access Analyzer rules fire only if those services are on.
-   - Open items to settle in Phase 5, with the options shown to David: SNS topic encryption (checkov `CKV_AWS_26`; to verify whether EventBridge can publish to a topic encrypted with the AWS-managed key, otherwise it needs a customer-managed key at about $1/month, or a justified skip); how the KMS rules match our keys (key ID vs alias vs ARN in the event).
+   - Open items to settle in Phase 5, with the options shown to David: SNS topic encryption (checkov `CKV_AWS_26`; David leans toward a customer-managed key, about $1/month, if EventBridge cannot publish to a topic encrypted with the AWS-managed `aws/sns` key, which is to verify first; the other option is a justified skip); how the KMS rules match our keys (key ID vs alias vs ARN in the event).
    - Nothing alert-related is built before Phase 5.
+   - **Phase 5 definition of done, additional items** (on top of "Definition of done (every phase)"):
+     - Update threat model rows #1, #4, #7, #8, #9 and #21 so the residual-risk column describes the shipped alerts (and their limits) instead of "Tier 1: EventBridge rule". David decided this happens when Phase 5 ships, not earlier.
+     - Each alert rule is tested against the live sandbox and the result is recorded in the component doc (including whether `StopLogging` itself still triggers the alert).
+     - The SNS email subscription is confirmed by David, and a test alert has arrived.
 6. CI + tests
 7. Deploy / verify / screenshots / teardown / README. Run Prowler (installed with pipx) under a read-only SecurityAudit/ViewOnlyAccess SSO profile for an independent CIS report, saved to `docs/compliance/` with the account ID redacted.
