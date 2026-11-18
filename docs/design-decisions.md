@@ -75,7 +75,9 @@ Limits (to state in the Phase 5 component doc and README):
 - The API-call rules depend on the trail running: EventBridge receives CloudTrail-sourced events only while a trail with logging is on ([AWS docs](https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-service-event-cloudtrail.html)). That `StopLogging` itself is still delivered is David's understanding; verify by testing in Phase 5.
 - Detect-only: a compromised admin can delete the rules or the topic. Prevention still needs SCPs (Tier 2).
 Cost note: "about $0" holds for EventBridge and SNS email at this volume. If the SNS topic needs a customer-managed KMS key, that adds about $1/month (open item for Phase 5).
-Effect on other docs: `control-tiers.md` alert rows now say "Phase 5, v1". Threat model rows #1, #4, #7, #8, #9 and #21 still say "Tier 1: EventBridge rule" in their residual-risk column; David to decide whether to update them now or when Phase 5 ships.
+Effect on other docs: `control-tiers.md` alert rows now say "Phase 5, v1". Threat model rows #1, #4, #7, #8, #9 and #21 still say "Tier 1: EventBridge rule" in their residual-risk column. **David decided (2026-11-18): update them when Phase 5 ships, not now.** This is in the Phase 5 definition of done in `CLAUDE.md`.
+SNS topic encryption: decided in Phase 5. David's current leaning is a customer-managed key (most secure, about $1/month) if EventBridge cannot publish to a topic encrypted with the AWS-managed `aws/sns` key (to verify first).
+The Phase 4 stack stays deployed through Phase 5 (it is the base Phase 5 builds on). Teardown happens in Phase 7.
 
 ### Phase 3 design choices (2026-11-16)
 
