@@ -15,6 +15,7 @@ How each v1 control **maps to** the CIS AWS Foundations Benchmark and SOC 2 Trus
 | IAM Access Analyzer (external access) | IAM.28 | Access Analyzer enabled (all regions: expected partial) | CC6.3, CC6.6 |
 | Account-level S3 Block Public Access | S3.1 | S3 Block Public Access enabled | CC6.1, CC6.6 |
 | Log bucket: bucket-level BPA, TLS-only policy, versioning | S3.8, S3.5 | Deny HTTP requests; block public access (bucket) | CC6.1, CC6.7 |
+| Log bucket server access logging (not implemented) | CloudTrail.7 (not in CIS v5.0.0 or FSBP) | None in v5.0.0 (CIS v1.2, v1.4 and v3.0 only). Tier 1 exception, see control-tiers.md | CC7.2 |
 | CloudTrail multi-region, management events | CloudTrail.1 | CloudTrail enabled in all regions | CC7.2, CC7.3 |
 | CloudTrail KMS encryption | CloudTrail.2 | CloudTrail logs encrypted at rest with KMS | CC6.1, CC6.7 |
 | CloudTrail log file validation | CloudTrail.4 | Log file validation enabled | CC7.2 |

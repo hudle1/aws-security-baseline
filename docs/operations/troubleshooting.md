@@ -11,6 +11,8 @@ Every real problem hit while building this repo, with symptom, cause and fix. Ne
 5. [`terraform fmt -diff` fails: "diff executable not found"](#5-terraform-fmt--diff-fails-diff-executable-not-found)
 6. [`terraform fmt -check` exits with code 3](#6-terraform-fmt--check-exits-with-code-3)
 7. [Terraform: "all of `filter_expression,metrics` must be specified"](#7-terraform-all-of-filter_expressionmetrics-must-be-specified)
+8. [Checkov still fails a policy after adding `#checkov:skip` on the resource](#8-checkov-still-fails-a-policy-after-adding-checkovskip-on-the-resource)
+9. ["First log file" check passes too early (folder markers)](#9-first-log-file-check-passes-too-early-folder-markers)
 
 ## 1. SSO login fails: profile not found
 
@@ -144,3 +146,32 @@ on an `aws_budgets_budget` resource.
 **Cause:** The AWS provider treats `filter_expression` and `metrics` as a pair. Setting one without the other fails at `validate`.
 
 **Fix:** set both. When importing an existing budget, copy the live value of `metrics` (for ours, `["UnblendedCost"]`) so the import doesn't change it. Read the live values from the plan output of the first import, or from `aws budgets describe-budget`.
+
+## 8. Checkov still fails a policy after adding `#checkov:skip` on the resource
+
+**Symptom**
+
+```text
+Check: CKV_AWS_109: "Ensure IAM policies does not allow permissions management / resource exposure without constraints"
+	FAILED for resource: aws_iam_policy_document.cloudtrail_key
+```
+
+even though `#checkov:skip=CKV_AWS_109: ...` was written inside `resource "aws_kms_key"`.
+
+**Cause:** Checkov evaluates the `data "aws_iam_policy_document"` block as its own resource. A skip comment only applies to the block it sits in, and the key resource that *uses* the policy is a different block.
+
+**Fix:** put the `#checkov:skip` lines (with the justification) inside the `data "aws_iam_policy_document"` block, and remove them from the key resource. Re-run checkov: 43 passed, 0 failed.
+
+## 9. "First log file" check passes too early (folder markers)
+
+**Symptom:** a script that waits for any object under `AWSLogs/` reports success within a minute of the trail being created, but `get-trail-status` still shows `LatestDeliveryTime: null` and there are no real logs.
+
+**Cause:** CloudTrail first creates zero-byte "folder marker" objects (`.../CloudTrail/` and `.../CloudTrail-Digest/`). A digest file (`CloudTrail-Digest/...json.gz`) can also arrive before the first event log. Neither is the first log file.
+
+**Fix:** look for a `.json.gz` key that does **not** contain `CloudTrail-Digest`:
+
+```powershell
+aws s3api list-objects-v2 --bucket <LOG_BUCKET> --prefix "AWSLogs/" --profile sandbox-admin --query "Contents[?ends_with(Key,'.json.gz') && !contains(Key,'CloudTrail-Digest')].Key | [0]" --output text
+```
+
+The first event log took about 15 minutes after the trail was created (2026-11-18). `LatestDeliveryTime` in `get-trail-status` becomes non-null at the same time.

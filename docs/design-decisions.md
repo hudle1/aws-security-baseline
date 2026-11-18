@@ -42,6 +42,25 @@ Choice: _pending_.
 **Scope change: CIS in scope.**
 Security Hub enables both AWS FSBP and the CIS AWS Foundations Benchmark. Latest supported version confirmed as **v5.0.0** via `aws securityhub describe-standards` (2026-11-15); which controls v5.0.0 contains is checked in Phase 5. Default standards stay off. Prowler gives an independent CIS report in Phase 7.
 
+### Phase 4 design choices (2026-11-18)
+
+**Q-i. Should the CloudTrail bucket have S3 server access logging (CloudTrail.7)?**
+Finding: CloudTrail.7 maps to CIS v1.2, v1.4 and v3.0 only. It is not in CIS v5.0.0 or FSBP (checked against the AWS Security Hub control docs, 2026-11-18), so neither enabled standard checks for it.
+Options: (1) Tier 1 exception, no second bucket; (2) in scope: a second hardened access-log bucket plus logging on the log bucket.
+Choice: **1, Tier 1 exception.**
+Reasoning: a second bucket would itself need BPA, versioning and a policy, and Checkov would then flag that bucket for having no logging, which is a loop. Recorded in `control-tiers.md`; `CKV_AWS_18` is skipped in code with this reason.
+Related finding: CloudTrail.5 (CloudWatch Logs) is CIS v5.0.0 3.4, so decision e makes it fail by design. It was already listed in `control-tiers.md` and is now marked as confirmed.
+
+**Q-j. Log retention.**
+Options: 90 days (cheaper, shorter evidence window); 365 days (covers a typical SOC 2 audit window and slow investigations).
+Choice: **365 days for current objects, 30 days for noncurrent versions** (variables `log_retention_days`, `noncurrent_retention_days`; the first has a 90-day minimum). **Confirmed by David 2026-11-18.**
+David's reasoning: covers a typical audit window and slow investigations, for pennies. Digest files expire on the same schedule, so `validate-logs` only works inside that window.
+
+**Q-k. Who may decrypt CloudTrail logs?**
+Options: (1) AWS's documented pattern: any principal in this account, limited to CloudTrail-encrypted data by encryption context; (2) a named log-reader role only.
+Choice: **1, AWS's documented account-wide pattern. Confirmed by David 2026-11-18.**
+David's reasoning: S3 read access is still required as a second lock, because reading a log needs both S3 permissions and `kms:Decrypt`. Trade-off: the key statement grants decrypt without needing an IAM allow. Production improvement: a named log-reader role (threat model #3).
+
 ### Phase 3 design choices (2026-11-16)
 
 **Q-g. Should the IAM password policy force password expiry (`max_password_age`)?**
