@@ -24,7 +24,9 @@ Each page covers: what it is, why we have it, configuration, defining file, how 
 | Account-level S3 Block Public Access | guardrails | [components/s3-block-public-access.md](components/s3-block-public-access.md) | Written (Phase 3) |
 | IAM Access Analyzer | guardrails | [components/access-analyzer.md](components/access-analyzer.md) | Written (Phase 3) |
 | AWS Budget `monthly-10-usd` | guardrails | [components/budget.md](components/budget.md) | Written (Phase 3) |
-| CloudTrail + KMS + log bucket | baseline | `components/cloudtrail.md` | Planned (Phase 4) |
+| CloudTrail trail | baseline | [components/cloudtrail.md](components/cloudtrail.md) | Written (Phase 4) |
+| CloudTrail KMS key | baseline | [components/kms-cloudtrail-key.md](components/kms-cloudtrail-key.md) | Written (Phase 4) |
+| Log-archive bucket | baseline | [components/log-bucket.md](components/log-bucket.md) | Written (Phase 4) |
 | GuardDuty | baseline | `components/guardduty.md` | Planned (Phase 5) |
 | Security Hub | baseline | `components/security-hub.md` | Planned (Phase 5) |
 | AWS Config | baseline | `components/config.md` | Planned (Phase 5) |
@@ -36,7 +38,7 @@ Each page covers: what it is, why we have it, configuration, defining file, how 
 | `operations/deploy.md` | Prerequisites, access setup including SSO, step-by-step deploy | Planned (needed by Phase 7; started as each phase deploys) |
 | `operations/teardown.md` | `destroy` vs `destroy-all` and what each deletes | Planned (Phase 7) |
 | `operations/common-changes.md` | Safe recipes for routine changes | Planned (grows each phase) |
-| [operations/troubleshooting.md](operations/troubleshooting.md) | Every real problem hit, with symptom, cause and fix | Started (Phase 3) |
+| [operations/troubleshooting.md](operations/troubleshooting.md) | Every real problem hit, with symptom, cause and fix | Started (Phase 3, grows each phase) |
 | `operations/runbook-compromised-credentials.md` | One-page incident runbook | Planned (Phase 7) |
 
 ## Other
