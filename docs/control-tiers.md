@@ -1,6 +1,6 @@
 # Control Tiers
 
-How I'd sequence these controls in a real company. **v1 of this repo demonstrates all Tier 0 controls plus selected Tier 1 controls** (Security Hub, AWS Config), because a portfolio needs to show the posture scorecard.
+How I'd sequence these controls in a real company. **v1 of this repo demonstrates all Tier 0 controls plus selected Tier 1 controls** (Security Hub, AWS Config, real-time email alerts), because a portfolio needs to show the posture scorecard.
 
 - **Tier 0: day 1.** Free or near-free, prevents or detects the most common breaches.
 - **Tier 1: 30–90 days.** Real value, but adds cost that grows with resources, or needs someone to act on its output.
@@ -26,7 +26,7 @@ How I'd sequence these controls in a real company. **v1 of this repo demonstrate
 | Security Hub (FSBP + CIS) | **Yes** | Cost grows with resources and findings need someone to triage; deployed in v1 to show the scorecard |
 | AWS Config (limited types, daily) | **Yes** | Same as Security Hub, which depends on it |
 | CloudTrail → CloudWatch Logs + CIS metric alarms | No | Cost; GuardDuty already alerts on root credential use and CloudTrail being stopped (decision e) |
-| EventBridge alerts on KMS, bucket policy, GuardDuty changes | No | Closes "no real-time alert" gaps (threat model #4, #7, #8) |
+| EventBridge + SNS email alerts: CloudTrail stop/delete/update, KMS key deletion/disable/policy, log bucket policy/versioning, Config recorder stop, GuardDuty severity >= 7, new Access Analyzer findings | **Phase 5, v1** (decision Q-l) | Closes the "no real-time alert" gaps (threat model #1, #4, #7, #8, #9, #21) at about $0. Limits: us-east-1 only; API-call rules depend on the trail running; detect-only |
 | Remote Terraform state (S3, versioned, locking) | No | Threat model #13; not needed for one person on one laptop |
 | GuardDuty in all enabled regions | Pending Q-f | Threat model #10; decided in Phase 5 |
 
