@@ -12,6 +12,7 @@ v1 scope:
 - Account-level S3 Block Public Access
 - IAM Access Analyzer (external access analyzer, account zone of trust)
 - AWS Budgets: $10 alarm (actual + forecasted)
+- Real-time email alerts on tampering and high-severity findings (SNS + EventBridge, built in Phase 5; decision Q-l)
 - One-command teardown
 - Cost note
 
@@ -110,5 +111,18 @@ A phase is not done until:
 3. Guardrails stack
 4. CloudTrail
 5. GuardDuty / Security Hub / Config. Config resource types must include at least `AWS::S3::Bucket`, `AWS::KMS::Key`, `AWS::CloudTrail::Trail` and the IAM types (`AWS::IAM::Role`, `AWS::IAM::Policy`, `AWS::IAM::User`, `AWS::IAM::Group`), because the threat model and David's interview answers depend on Config recording them.
+
+   **Phase 5 also builds real-time alerts** (decision Q-l, moved from Tier 1 into v1; the CloudWatch Logs + CIS metric alarms of decision e stay Tier 1):
+   - One SNS topic with an email subscription. The address is a variable in `baseline.tfvars` (gitignored, `sensitive`), with a placeholder in `baseline.tfvars.example`. David confirms the subscription email; Terraform cannot, so the subscription stays pending until he does.
+   - EventBridge rules (default bus, us-east-1) that publish to that topic, for:
+     - CloudTrail `StopLogging`, `DeleteTrail`, `UpdateTrail`.
+     - KMS `ScheduleKeyDeletion`, `DisableKey`, `PutKeyPolicy` on our keys (CloudTrail and Config).
+     - S3 `PutBucketPolicy`, `DeleteBucketPolicy`, `PutBucketVersioning` on the log bucket.
+     - Config `StopConfigurationRecorder`, `DeleteDeliveryChannel`.
+     - GuardDuty findings with severity >= 7.
+     - New active IAM Access Analyzer findings.
+   - Limits to document, not hide: us-east-1 only (EventBridge rules work only in the region where they are created); the API-call rules depend on the trail running, because EventBridge only receives CloudTrail-sourced events while a trail with logging is on (whether the `StopLogging` call itself is still delivered is verified in Phase 5 by testing, not assumed); a compromised admin can still delete the rules or the topic (detect-only, like everything in v1); GuardDuty and Access Analyzer rules fire only if those services are on.
+   - Open items to settle in Phase 5, with the options shown to David: SNS topic encryption (checkov `CKV_AWS_26`; to verify whether EventBridge can publish to a topic encrypted with the AWS-managed key, otherwise it needs a customer-managed key at about $1/month, or a justified skip); how the KMS rules match our keys (key ID vs alias vs ARN in the event).
+   - Nothing alert-related is built before Phase 5.
 6. CI + tests
 7. Deploy / verify / screenshots / teardown / README. Run Prowler (installed with pipx) under a read-only SecurityAudit/ViewOnlyAccess SSO profile for an independent CIS report, saved to `docs/compliance/` with the account ID redacted.

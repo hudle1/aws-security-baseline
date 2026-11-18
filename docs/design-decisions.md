@@ -61,6 +61,22 @@ Options: (1) AWS's documented pattern: any principal in this account, limited to
 Choice: **1, AWS's documented account-wide pattern. Confirmed by David 2026-11-18.**
 David's reasoning: S3 read access is still required as a second lock, because reading a log needs both S3 permissions and `kms:Decrypt`. Trade-off: the key statement grants decrypt without needing an IAM allow. Production improvement: a named log-reader role (threat model #3).
 
+### Scope change: real-time alerts move into v1 (2026-11-18)
+
+**Q-l. Should real-time alerts on tampering and high-severity findings be in v1?**
+Options: (1) Tier 1, later (as recorded in the Phase 2 threat model); (2) v1, built in Phase 5.
+Choice: **2, v1, built in Phase 5.**
+David's reasoning: it closes the "no real-time alert" gaps for log tampering and key deletion at about $0 cost.
+Scope (recorded in `CLAUDE.md`, nothing built yet):
+- One SNS topic with an email subscription (alert email from `baseline.tfvars`; David confirms the subscription).
+- EventBridge rules for: CloudTrail `StopLogging` / `DeleteTrail` / `UpdateTrail`; KMS `ScheduleKeyDeletion` / `DisableKey` / `PutKeyPolicy` on our keys; S3 `PutBucketPolicy` / `DeleteBucketPolicy` / `PutBucketVersioning` on the log bucket; Config `StopConfigurationRecorder` / `DeleteDeliveryChannel`; GuardDuty findings with severity >= 7; new active IAM Access Analyzer findings.
+Limits (to state in the Phase 5 component doc and README):
+- us-east-1 only: EventBridge rules work only in the region where they are created.
+- The API-call rules depend on the trail running: EventBridge receives CloudTrail-sourced events only while a trail with logging is on ([AWS docs](https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-service-event-cloudtrail.html)). That `StopLogging` itself is still delivered is David's understanding; verify by testing in Phase 5.
+- Detect-only: a compromised admin can delete the rules or the topic. Prevention still needs SCPs (Tier 2).
+Cost note: "about $0" holds for EventBridge and SNS email at this volume. If the SNS topic needs a customer-managed KMS key, that adds about $1/month (open item for Phase 5).
+Effect on other docs: `control-tiers.md` alert rows now say "Phase 5, v1". Threat model rows #1, #4, #7, #8, #9 and #21 still say "Tier 1: EventBridge rule" in their residual-risk column; David to decide whether to update them now or when Phase 5 ships.
+
 ### Phase 3 design choices (2026-11-16)
 
 **Q-g. Should the IAM password policy force password expiry (`max_password_age`)?**
