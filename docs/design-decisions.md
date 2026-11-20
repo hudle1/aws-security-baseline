@@ -106,6 +106,11 @@ Choice: **1, customer-managed key.** Scoping to our rules is done in the topic p
 Options: (1) our three keys by ID and ARN; (2) any KMS key in the account; (3) key ID only.
 Choice: **2, any KMS key in the account.** Never stale, and a new key is covered automatically. Trade-off: also alerts on harmless key work in the sandbox.
 
+**Q-r. What to do with the free failing controls and the test finding (decided 2026-11-20).**
+- **Quick wins:** fix `EC2.7` (EBS default encryption), `Account.1` (security contact), `IAM.18` (support role) and `SSM.7` (block public SSM document sharing) in the guardrails stack, as a small follow-up PR after Phase 5 merges. Account contact details live in `guardrails.tfvars` (gitignored), placeholders in the example file.
+- **Test finding:** the real GuardDuty `Stealth:IAMUser/CloudTrailLoggingDisabled` finding from the StopLogging test stays unarchived until the Phase 7 screenshots, then is archived.
+- **`docs/operations/deploy.md`:** written in Phase 7.
+
 ### Phase 3 design choices (2026-11-16)
 
 **Q-g. Should the IAM password policy force password expiry (`max_password_age`)?**

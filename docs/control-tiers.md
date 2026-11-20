@@ -67,11 +67,11 @@ Dates are provisional (set 2026-11-15) and use the 90-day maximum from the risk-
 | CloudTrail.7 (CIS 3.4) | S3 access logging on the CloudTrail bucket | Needs a second hardened access-log bucket (Phase 4 decision Q-i; Checkov `CKV_AWS_18` skipped) | 1 | Bucket-level actions are CloudTrail management events; object integrity via log file validation | 2027-02-13 |
 | S3.22, S3.23 | Object-level write / read logging for S3 | Decision d: CloudTrail data events off | 1 | GuardDuty S3 Protection is on (anomaly-based, needs a baseline) | 2027-02-13 |
 | IAM.6 (also FSBP) | Hardware MFA for the root user | Root uses a virtual/passkey MFA (verify which) | 1 | Root has MFA and no access keys; GuardDuty alerts on root credential use | 2027-02-13 |
-| IAM.18 | A support role exists (`AWSSupportAccess`) | Not created | 0 candidate | None needed (no users to delegate support to) | proposed fix, David to decide |
-| Account.1 (also FSBP) | Security contact information set on the account | Not set | 0 candidate | None | proposed fix, David to decide |
-| EC2.7 (also FSBP) | EBS default encryption enabled | Not enabled; no EBS volumes exist | 0 candidate | No EC2 or EBS in the sandbox | proposed fix, David to decide |
+| IAM.18 | A support role exists (`AWSSupportAccess`) | Not created | 0 candidate | None needed (no users to delegate support to) | follow-up PR (guardrails), decided 2026-11-20 |
+| Account.1 (also FSBP) | Security contact information set on the account | Not set | 0 candidate | None | follow-up PR (guardrails), decided 2026-11-20 |
+| EC2.7 (also FSBP) | EBS default encryption enabled | Not enabled; no EBS volumes exist | 0 candidate | No EC2 or EBS in the sandbox | follow-up PR (guardrails), decided 2026-11-20 |
 
-**Proposed quick wins (not done, need your decision):** `EC2.7`, `Account.1`, `IAM.18` and FSBP `SSM.7` (CRITICAL, "block public sharing of SSM documents") are free account settings. They fit the guardrails stack better than the baseline stack, and would turn 4 failures into passes.
+**Quick wins (decided 2026-11-20, not yet built):** `EC2.7`, `Account.1`, `IAM.18` and FSBP `SSM.7` (CRITICAL, "block public sharing of SSM documents") are free account settings. They go in the **guardrails** stack as a small follow-up PR after Phase 5 merges, and would turn 4 failures into passes. The `Account.1` contact details go in `guardrails.tfvars` (gitignored) with placeholders in the example file.
 
 ### Failed controls that are FSBP only
 
@@ -85,6 +85,6 @@ Dates are provisional (set 2026-11-15) and use the 90-day maximum from the risk-
 | CloudTrail.5 | Decision e: no CloudWatch Logs integration on the trail | 1 | Logs in S3 and `lookup-events`; EventBridge alerts cover trail tampering | 2027-02-13 |
 | S3.9 | Server access logging on S3 buckets (same reason as CloudTrail.7) | 1 | As CloudTrail.7 | 2027-02-13 |
 | SSM.6 | SSM Automation CloudWatch logging; no Automation in use | 1 | None needed | 2027-02-13 |
-| SSM.7 | SSM document public sharing block not set (see quick wins above) | 0 candidate | No SSM documents exist | proposed fix |
+| SSM.7 | SSM document public sharing block not set (see quick wins above) | 0 candidate | No SSM documents exist | follow-up PR (guardrails), decided 2026-11-20 |
 
 Not in the failed list but previously predicted: `EC2.2` / `EC2.6` (default security group, VPC flow logs) and `IAM.28` were not among the 31 failures at this check; whether they are unevaluated (`WARNING`) or passed is **not yet verified**: check in Phase 7.
