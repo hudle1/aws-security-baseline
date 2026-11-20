@@ -80,7 +80,11 @@
                                      "Bash(git push*--no-verify*)",
                                      "PowerShell(git commit*--no-verify*)",
                                      "PowerShell(git commit* -n*)",
-                                     "PowerShell(git push*--no-verify*)"
+                                     "PowerShell(git push*--no-verify*)",
+                                     "Bash(*.claude/settings*)",
+                                     "Bash(*.claude\\settings*)",
+                                     "PowerShell(*.claude/settings*)",
+                                     "PowerShell(*.claude\\settings*)"
                                  ]
                     }
 }

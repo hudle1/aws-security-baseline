@@ -1,6 +1,6 @@
 # Component: log-archive bucket
 
-**Stack:** `infra/baseline` · **Written:** Phase 4 · **Verified live:** 2026-11-18
+**Stack:** `infra/baseline` · **Written:** Phase 4 · **Verified live:** 2026-11-18 (Config statements: 2026-11-19)
 
 ## What it is
 
@@ -31,8 +31,13 @@ Threats in [threat-model.md](../threat-model.md): #2 (logs edited or deleted), #
 | `AWSCloudTrailAclCheck` | `cloudtrail.amazonaws.com` may `s3:GetBucketAcl` | `aws:SourceArn` = this trail, `aws:SourceAccount` = this account |
 | `AWSCloudTrailWrite` | `cloudtrail.amazonaws.com` may `s3:PutObject` on `AWSLogs/<ACCOUNT_ID>/CloudTrail/*` and `.../CloudTrail-Digest/*` only | Same two, plus `s3:x-amz-acl` = `bucket-owner-full-control` |
 | `DenyInsecureTransport` | **Deny** `s3:*` for everyone | `aws:SecureTransport` = false |
+| `AWSConfigBucketPermissionsCheck` | `config.amazonaws.com` may `s3:GetBucketAcl` | `aws:SourceAccount` = this account, `aws:SourceArn` = `arn:aws:config:us-east-1:<ACCOUNT_ID>:*` |
+| `AWSConfigBucketExistenceCheck` | `config.amazonaws.com` may `s3:ListBucket` | Same two |
+| `AWSConfigBucketDelivery` | `config.amazonaws.com` may `s3:PutObject` on `AWSLogs/<ACCOUNT_ID>/Config/*` only | Same two, plus `s3:x-amz-acl` = `bucket-owner-full-control` |
 
-The write statement is **not** `AWSLogs/<ACCOUNT_ID>/*`: that would let CloudTrail write into the Config prefix. The Phase 5 statements for Config go in the clearly marked place at the end of the policy document and must stay on their own prefix.
+The three Config statements follow AWS's documented pattern ([Permissions for the Amazon S3 bucket](https://docs.aws.amazon.com/config/latest/developerguide/s3-bucket-policy.html)). Config files are encrypted with the [Config key](kms-config-key.md) (named by the delivery channel), not the bucket's default CloudTrail key. A first apply failed on the Config delivery channel; the cause was the Config KMS key policy, not these statements (see troubleshooting #10). **Alert:** `PutBucketPolicy`, `DeleteBucketPolicy` and `PutBucketVersioning` on this bucket email you ([alerts.md](alerts.md)).
+
+The CloudTrail write statement is **not** `AWSLogs/<ACCOUNT_ID>/*`: that would let CloudTrail write into the Config prefix. Each service stays on its own prefix.
 
 ## File that defines it
 
@@ -80,5 +85,5 @@ S3 storage and requests for management events from a one-person sandbox: pennies
 ## Related controls
 
 - Security Hub: S3.1, S3.5, S3.8 (bucket-level BPA and TLS), CloudTrail.2.
-- CIS v5.0.0: S3 TLS-only and public-access controls. CloudTrail.7 (server access logging) is not in CIS v5.0.0 and is a documented Tier 1 exception.
+- CIS v5.0.0: S3 TLS-only and public-access controls. CloudTrail.7 (CIS v5.0.0 3.4, server access logging) fails and is a documented Tier 1 exception (corrected 2026-11-19: it is in v5.0.0).
 - SOC 2: CC6.1, CC6.7 (see [compliance-mapping.md](../compliance-mapping.md)).

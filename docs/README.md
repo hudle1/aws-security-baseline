@@ -27,9 +27,12 @@ Each page covers: what it is, why we have it, configuration, defining file, how 
 | CloudTrail trail | baseline | [components/cloudtrail.md](components/cloudtrail.md) | Written (Phase 4) |
 | CloudTrail KMS key | baseline | [components/kms-cloudtrail-key.md](components/kms-cloudtrail-key.md) | Written (Phase 4) |
 | Log-archive bucket | baseline | [components/log-bucket.md](components/log-bucket.md) | Written (Phase 4) |
-| GuardDuty | baseline | `components/guardduty.md` | Planned (Phase 5) |
-| Security Hub | baseline | `components/security-hub.md` | Planned (Phase 5) |
-| AWS Config | baseline | `components/config.md` | Planned (Phase 5) |
+| AWS Config | baseline | [components/config.md](components/config.md) | Written (Phase 5) |
+| Config KMS key | baseline | [components/kms-config-key.md](components/kms-config-key.md) | Written (Phase 5) |
+| GuardDuty | baseline | [components/guardduty.md](components/guardduty.md) | Written (Phase 5) |
+| Security Hub | baseline | [components/security-hub.md](components/security-hub.md) | Written (Phase 5) |
+| Real-time alerts (EventBridge + SNS) | baseline | [components/alerts.md](components/alerts.md) | Written (Phase 5) |
+| Alerts KMS key | baseline | [components/kms-alerts-key.md](components/kms-alerts-key.md) | Written (Phase 5) |
 
 ## Operations
 

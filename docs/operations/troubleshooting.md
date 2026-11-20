@@ -13,6 +13,11 @@ Every real problem hit while building this repo, with symptom, cause and fix. Ne
 7. [Terraform: "all of `filter_expression,metrics` must be specified"](#7-terraform-all-of-filter_expressionmetrics-must-be-specified)
 8. [Checkov still fails a policy after adding `#checkov:skip` on the resource](#8-checkov-still-fails-a-policy-after-adding-checkovskip-on-the-resource)
 9. ["First log file" check passes too early (folder markers)](#9-first-log-file-check-passes-too-early-folder-markers)
+10. [Config: `InsufficientDeliveryPolicyException` creating the delivery channel](#10-config-insufficientdeliverypolicyexception-creating-the-delivery-channel)
+11. [KMS: `MalformedPolicyDocumentException` "invalid principals" on a key naming a new role](#11-kms-malformedpolicydocumentexception-invalid-principals-on-a-key-naming-a-new-role)
+12. [Security Hub: standards subscription times out while `PENDING`, resource left tainted](#12-security-hub-standards-subscription-times-out-while-pending-resource-left-tainted)
+13. [PowerShell 5.1: JSON passed to the AWS CLI loses its quotes](#13-powershell-51-json-passed-to-the-aws-cli-loses-its-quotes)
+14. [SQS, SNS and IAM reject a placeholder account ID in a policy](#14-sqs-sns-and-iam-reject-a-placeholder-account-id-in-a-policy)
 
 ## 1. SSO login fails: profile not found
 
@@ -175,3 +180,103 @@ aws s3api list-objects-v2 --bucket <LOG_BUCKET> --prefix "AWSLogs/" --profile sa
 ```
 
 The first event log took about 15 minutes after the trail was created (2026-11-18). `LatestDeliveryTime` in `get-trail-status` becomes non-null at the same time.
+
+## 10. Config: `InsufficientDeliveryPolicyException` creating the delivery channel
+
+**Symptom**
+
+```text
+Error: putting ConfigService Delivery Channel (baseline-delivery): ... PutDeliveryChannel ...
+InsufficientDeliveryPolicyException: Insufficient delivery policy to s3 bucket: <LOG_BUCKET>,
+unable to write to bucket, provided s3 key prefix is 'null', provided kms key is 'arn:aws:kms:us-east-1:<ACCOUNT_ID>:key/<KEY_ID>'.
+```
+
+`terraform apply` stops partway: the recorder exists but is not started, and Security Hub is not created (it depends on the recorder status).
+
+**Cause (verified: the apply that applied this fix succeeded on 2026-11-19):** AWS documents that the AWS Config service-linked role has **no KMS permissions**, so when Config is set up with the SLR it delivers to S3 **as the Config service principal** (`config.amazonaws.com`) instead ([Permissions for the KMS Key for the AWS Config Delivery Channel](https://docs.aws.amazon.com/config/latest/developerguide/s3-kms-key-policy.html)). Our Config key policy only allowed the SLR role, so the test write that `PutDeliveryChannel` performs was refused at the key.
+
+How it was found: CloudTrail showed an `sts:AssumeRole` by `config.amazonaws.com` before every failed `PutDeliveryChannel`, no denied KMS or S3 call was logged, and `AWSConfigServiceRolePolicy` contains only read-style KMS actions (`DescribeKey`, `GetKeyPolicy`, ...). The generic error message points at the bucket, which is misleading.
+
+**Wrong first guess (recorded so nobody repeats it):** the bucket policy's extra `aws:SourceArn` condition was removed and the policy rewritten to AWS's three-statement form. The error did not change (it failed again on the second apply), so that was not the cause. `aws:SourceArn` is supported: for the service principal it is always `arn:aws:config:<region>:<ACCOUNT_ID>:*`. It was restored.
+
+**Fix:** in the Config key policy, replace the statement naming the service-linked role with one for `config.amazonaws.com`: `kms:Decrypt` and `kms:GenerateDataKey`, with `aws:SourceAccount` and `aws:SourceArn` conditions. The bucket policy keeps AWS's three statements (`GetBucketAcl`, `ListBucket`, `PutObject` to the Config prefix with `bucket-owner-full-control`), each with `aws:SourceAccount` and `aws:SourceArn`. Then re-plan and apply; a partial apply leaves state consistent, and the saved plan is stale, so delete it and plan again.
+
+**General lesson:** when Config delivery fails with `InsufficientDeliveryPolicyException` and the bucket policy matches AWS's example, check the KMS key policy for the *service principal*, not only the role.
+
+## 11. KMS: `MalformedPolicyDocumentException` "invalid principals" on a key naming a new role
+
+**Symptom**
+
+```text
+MalformedPolicyDocumentException: Policy contains a statement with one or more invalid principals.
+```
+
+on `CreateKey` for the Config key, a few seconds after the service-linked role was created.
+
+**Cause:** the key policy names the new AWS Config service-linked role. IAM changes are eventually consistent, so for a few seconds KMS does not yet see the role and treats the principal as invalid.
+
+**Fix:** none needed. The AWS provider retries `CreateKey` for this error and succeeded within about 15 seconds (2026-11-18). The explicit `aws_iam_service_linked_role` resource, referenced by the key policy, guarantees the role is created first. If you ever see it fail outright, re-run `terraform apply`.
+
+## 12. Security Hub: standards subscription times out while `PENDING`, resource left tainted
+
+**Symptom**
+
+```text
+Error: waiting for Security Hub Standards Subscription (arn:aws:securityhub:us-east-1:<ACCOUNT_ID>:subscription/aws-foundational-security-best-practices/v/1.0.0) create:
+timeout while waiting for state to become 'READY, INCOMPLETE' (last state: 'PENDING', timeout: 3m0s)
+```
+
+for both FSBP and CIS. `terraform state show` marks them `(tainted)`.
+
+**Cause:** enabling a standard makes Security Hub create about a hundred AWS Config rules one at a time. In this account it took about **20 minutes** to reach `READY` (2026-11-19). The AWS provider's default wait is 3 minutes, so it gives up and marks the resource tainted. AWS was fine; Terraform was impatient. A tainted resource would be destroyed and recreated on the next apply, which means disabling and re-enabling the standard.
+
+**Fix:**
+
+1. Do **not** re-apply yet. Wait until both standards are `READY`:
+
+```powershell
+aws securityhub get-enabled-standards --region us-east-1 --profile sandbox-admin --query "StandardsSubscriptions[].StandardsStatus" --output text
+```
+
+2. Tell Terraform the resources are fine (this edits only the local state file, not AWS), then confirm the plan is empty:
+
+```powershell
+terraform untaint aws_securityhub_standards_subscription.fsbp
+terraform untaint aws_securityhub_standards_subscription.cis
+terraform plan "-var-file=baseline.tfvars" -detailed-exitcode
+```
+
+Exit code 0 means no changes.
+
+**Prevention:** `securityhub.tf` now sets `timeouts { create = "40m" }` on both subscriptions. A fresh deploy should wait instead of failing (pending verification on the next fresh deploy).
+
+## 13. PowerShell 5.1: JSON passed to the AWS CLI loses its quotes
+
+**Symptom:** `aws sns set-topic-attributes ... --attribute-value '{...json...}'` fails with `Invalid parameter: Policy Error: null`, or a JSON filter such as `--finding-criteria '{...}'` is rejected as malformed, even though the JSON looks right.
+
+**Cause:** Windows PowerShell 5.1 passes arguments to native programs through the command line and strips the double quotes inside the JSON.
+
+**Fix:** write the JSON to a file with no BOM and pass it as `file://`. The AWS CLI accepts `file://` for any parameter that takes a string:
+
+```powershell
+[IO.File]::WriteAllText($f, $json, (New-Object Text.UTF8Encoding($false)))
+aws sns set-topic-attributes --topic-arn <TOPIC_ARN> --attribute-name Policy --attribute-value ("file://" + ($f -replace '\','/'))
+```
+
+Where a command takes inline JSON and a file is awkward, escape each inner quote as `\"` (the single-quoted form with `\"` worked for `--filters` and `--finding-criteria`). Never leave test files containing real values behind; delete them after use.
+
+## 14. SQS, SNS and IAM reject a placeholder account ID in a policy
+
+**Symptom**
+
+```text
+SQS: InvalidAttributeValue: Invalid value for the parameter Policy.
+SNS: InvalidParameter: Invalid parameter: Policy Error: PrincipalNotFound
+IAM: MalformedPolicyDocument: Invalid principal in policy: "AWS":"arn:aws:iam::111122223333:root"
+```
+
+while trying to create a test resource shared with the AWS documentation example account `111122223333` (to trigger an IAM Access Analyzer finding).
+
+**Cause:** these services check that the account named as a principal exists. A documentation placeholder is not a real account.
+
+**Fix:** use a principal that is valid without being a real second account. The test that worked used an IAM role whose trust policy names `"AWS": "*"` limited by a random `sts:ExternalId` condition, with **no permission policies**, deleted about 90 seconds later (Access Analyzer raised the finding in 74 seconds). Role name `aa-alert-test-delete-me`; the finding was archived afterwards. Or use a real account ID you own.
