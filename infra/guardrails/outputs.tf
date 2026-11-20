@@ -25,3 +25,18 @@ output "budget_name" {
   description = "Name of the managed monthly cost budget."
   value       = aws_budgets_budget.monthly.name
 }
+
+output "ebs_encryption_by_default" {
+  description = "Whether new EBS volumes in this region are encrypted by default (Security Hub EC2.7)."
+  value       = aws_ebs_encryption_by_default.this.enabled
+}
+
+output "support_role_name" {
+  description = "Name of the IAM role with AWSSupportAccess (Security Hub IAM.18)."
+  value       = aws_iam_role.support.name
+}
+
+output "ssm_public_document_sharing" {
+  description = "Value of the SSM public document sharing setting (Security Hub SSM.7): Disable = blocked."
+  value       = aws_ssm_service_setting.block_public_document_sharing.setting_value
+}

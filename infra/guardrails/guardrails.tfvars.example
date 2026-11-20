@@ -3,3 +3,9 @@
 account_id       = "123456789012"
 budget_email     = "you@example.com"
 budget_limit_usd = 10
+
+# Security contact for Security Hub Account.1 (AWS sends security notices here).
+# Put the REAL values in guardrails.tfvars (gitignored), never in this file.
+security_contact_name  = "Your Name"
+security_contact_email = "security@example.com"
+security_contact_phone = "+1 555 555 0100"

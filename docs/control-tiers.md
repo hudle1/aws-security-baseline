@@ -71,7 +71,7 @@ Dates are provisional (set 2026-11-15) and use the 90-day maximum from the risk-
 | Account.1 (also FSBP) | Security contact information set on the account | Not set | 0 candidate | None | follow-up PR (guardrails), decided 2026-11-20 |
 | EC2.7 (also FSBP) | EBS default encryption enabled | Not enabled; no EBS volumes exist | 0 candidate | No EC2 or EBS in the sandbox | follow-up PR (guardrails), decided 2026-11-20 |
 
-**Quick wins (decided 2026-11-20, not yet built):** `EC2.7`, `Account.1`, `IAM.18` and FSBP `SSM.7` (CRITICAL, "block public sharing of SSM documents") are free account settings. They go in the **guardrails** stack as a small follow-up PR after Phase 5 merges, and would turn 4 failures into passes. The `Account.1` contact details go in `guardrails.tfvars` (gitignored) with placeholders in the example file.
+**Quick wins (decided 2026-11-20, built in the guardrails quick-wins PR, [component doc](components/account-quick-wins.md); not yet applied):** `EC2.7`, `Account.1`, `IAM.18` and FSBP `SSM.7` (CRITICAL, "block public sharing of SSM documents") are free account settings. They go in the **guardrails** stack as a small follow-up PR after Phase 5 merges, and would turn 4 failures into passes. The `Account.1` contact details go in `guardrails.tfvars` (gitignored) with placeholders in the example file.
 
 ### Failed controls that are FSBP only
 

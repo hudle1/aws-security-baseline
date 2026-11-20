@@ -4,7 +4,7 @@ Terraform baseline for one personal AWS sandbox account, region `us-east-1`. Two
 
 | Stack | Contents | Cost | Lifecycle |
 | --- | --- | --- | --- |
-| `infra/guardrails` | Budget `monthly-10-usd` (imported), IAM password policy, account-level S3 Block Public Access, IAM Access Analyzer (external access) | Free | Persistent, never torn down for cost |
+| `infra/guardrails` | Budget `monthly-10-usd` (imported), IAM password policy, account-level S3 Block Public Access, IAM Access Analyzer (external access), EBS default encryption, security contact, `aws-support-access` role, SSM public-sharing block | Free | Persistent, never torn down for cost |
 | `infra/baseline` | CloudTrail + 3 KMS keys (CloudTrail, Config, alerts) + log-archive bucket, GuardDuty, Security Hub (FSBP + CIS v5.0.0), AWS Config, real-time alerts (6 EventBridge rules + encrypted SNS topic) | Billed | Deployed for demos, destroyed after |
 
 ## Diagram

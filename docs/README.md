@@ -31,6 +31,7 @@ Each page covers: what it is, why we have it, configuration, defining file, how 
 | Config KMS key | baseline | [components/kms-config-key.md](components/kms-config-key.md) | Written (Phase 5) |
 | GuardDuty | baseline | [components/guardduty.md](components/guardduty.md) | Written (Phase 5) |
 | Security Hub | baseline | [components/security-hub.md](components/security-hub.md) | Written (Phase 5) |
+| Account quick wins (EBS encryption, security contact, support role, SSM sharing block) | guardrails | [components/account-quick-wins.md](components/account-quick-wins.md) | Written (quick-wins PR, verification pending) |
 | Real-time alerts (EventBridge + SNS) | baseline | [components/alerts.md](components/alerts.md) | Written (Phase 5) |
 | Alerts KMS key | baseline | [components/kms-alerts-key.md](components/kms-alerts-key.md) | Written (Phase 5) |
 
