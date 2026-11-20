@@ -5,7 +5,7 @@ Terraform baseline for one personal AWS sandbox account, region `us-east-1`. Two
 | Stack | Contents | Cost | Lifecycle |
 | --- | --- | --- | --- |
 | `infra/guardrails` | Budget `monthly-10-usd` (imported), IAM password policy, account-level S3 Block Public Access, IAM Access Analyzer (external access) | Free | Persistent, never torn down for cost |
-| `infra/baseline` | CloudTrail + 2 KMS keys + log-archive bucket, GuardDuty, Security Hub (FSBP + CIS), AWS Config | Billed | Deployed for demos, destroyed after |
+| `infra/baseline` | CloudTrail + 3 KMS keys (CloudTrail, Config, alerts) + log-archive bucket, GuardDuty, Security Hub (FSBP + CIS v5.0.0), AWS Config, real-time alerts (6 EventBridge rules + encrypted SNS topic) | Billed | Deployed for demos, destroyed after |
 
 ## Diagram
 
@@ -33,8 +33,11 @@ flowchart LR
       CT["CloudTrail<br/>multi-region, log validation"]
       KCT["KMS key: CloudTrail"]
       KCF["KMS key: Config"]
+      KAL["KMS key: alerts"]
+      EB["EventBridge rules (6)<br/>input transformers"]
+      SNS["SNS topic<br/>encrypted, email"]
       S3["Log-archive bucket<br/>versioned, TLS-only"]
-      CFG["AWS Config<br/>limited types, daily"]
+      CFG["AWS Config<br/>limited types, continuous"]
       GD["GuardDuty<br/>+ S3 Protection"]
       SH["Security Hub<br/>FSBP + CIS"]
     end
@@ -50,6 +53,12 @@ flowchart LR
   CFG -->|"config.amazonaws.com<br/>AWSLogs/acct/Config/"| S3
   KCT -.->|"encrypts"| CT
   KCF -.->|"encrypts"| CFG
+  KAL -.->|"encrypts"| SNS
+  CT -->|"management events"| EB
+  GD -->|"findings >= 7"| EB
+  IAA -->|"ACTIVE findings"| EB
+  EB -->|"topic policy: our 6 rules only"| SNS
+  SNS -->|"email (confirmed subscription)"| DEV
   GD -->|"findings"| SH
   CFG -->|"evaluations for SH controls"| SH
   SH -->|"console review"| DEV
@@ -65,10 +74,12 @@ flowchart LR
 | --- | --- | --- | --- |
 | CloudTrail | `cloudtrail.amazonaws.com` | `s3://<bucket>/AWSLogs/<acct>/CloudTrail/` | Bucket policy: `aws:SourceArn` = this trail, `aws:SourceAccount`, `s3:x-amz-acl = bucket-owner-full-control` |
 | CloudTrail | `cloudtrail.amazonaws.com` | CloudTrail KMS key | Key policy: `kms:EncryptionContext:aws:cloudtrail:arn`, `aws:SourceArn` |
-| AWS Config | Config service role (assumed by `config.amazonaws.com`) | `s3://<bucket>/AWSLogs/<acct>/Config/` | Bucket policy: `aws:SourceAccount`; role policy limited to that prefix |
-| AWS Config | Config service role | Config KMS key | Key policy: only the Config role, encrypt/generate data key |
+| AWS Config | `config.amazonaws.com` (the service principal; the service-linked role has no S3 write or KMS permissions) | `s3://<bucket>/AWSLogs/<acct>/Config/` | Bucket policy: `aws:SourceAccount`, `aws:SourceArn` = Config in our account and region, `s3:x-amz-acl = bucket-owner-full-control` |
+| AWS Config | `config.amazonaws.com` | Config KMS key | Key policy: `GenerateDataKey` and `Decrypt`, `aws:SourceAccount` + `aws:SourceArn` |
+| EventBridge | `events.amazonaws.com` | SNS topic `baseline-security-alerts` | Topic policy: `sns:Publish` only with `aws:SourceArn` = our 6 rule ARNs |
+| EventBridge | `events.amazonaws.com` | Alerts KMS key | Key policy: `GenerateDataKey*` and `Decrypt`, **no source conditions** (AWS documents they break delivery); the topic policy is the gate |
 | GuardDuty | GuardDuty service | Security Hub findings | Built-in integration; reads CloudTrail management events, VPC Flow Logs, DNS and S3 data events **independently** of our trail |
-| Security Hub | Security Hub service-linked role | Config rules for its controls | Requires Config recording; controls on unrecorded resource types show "no data" |
+| Security Hub | Security Hub service-linked role | Config rules for its controls | Requires Config recording; controls on unrecorded resource types show `WARNING` (267 controls in this setup, see control-tiers.md) |
 | IAM Access Analyzer | Access Analyzer service-linked role | Findings (own console; Security Hub when deployed) | Reads resource policies only; account zone of trust |
 | Terraform | David's SSO role | Both stacks | Human approval for every apply/destroy; `allowed_account_ids` pins the sandbox |
 
@@ -86,5 +97,5 @@ flowchart LR
 ```
 
 - Every `apply`/`destroy` shows a plan and waits for a human "yes". `-auto-approve` is denied in Claude Code settings.
-- Teardown leaves two KMS keys in **pending deletion** (7-day window, not billed) and empties the versioned log bucket. Both are acceptable in a sandbox and wrong in production (see threat model).
+- Teardown leaves three KMS keys in **pending deletion** (7-day window, not billed) and empties the versioned log bucket. Both are acceptable in a sandbox and wrong in production (see threat model).
 - State is local and gitignored. Remote state (S3 + locking, separate account) is a production improvement.

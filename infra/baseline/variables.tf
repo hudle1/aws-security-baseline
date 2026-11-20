@@ -40,3 +40,14 @@ variable "noncurrent_retention_days" {
     error_message = "noncurrent_retention_days must be at least 1."
   }
 }
+
+variable "alert_email" {
+  description = "Email address that receives real-time security alerts (SNS subscription). Sensitive: it lives in baseline.tfvars (gitignored). The subscription stays 'pending' until the recipient clicks the confirmation link; Terraform cannot confirm it."
+  type        = string
+  sensitive   = true
+
+  validation {
+    condition     = can(regex("^[^@[:space:]]+@[^@[:space:]]+[.][^@[:space:]]+$", var.alert_email))
+    error_message = "alert_email must look like an email address (name@example.com)."
+  }
+}

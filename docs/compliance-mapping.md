@@ -3,7 +3,7 @@
 How each v1 control **maps to** the CIS AWS Foundations Benchmark and SOC 2 Trust Services Criteria (CC6–CC8). A mapping shows which requirement a control supports. It is not a claim that the account or any organization is compliant: compliance is an auditor's judgment over policies, people, and evidence over time (see Gaps).
 
 - **CIS version:** v5.0.0, the latest Security Hub supports (confirmed with `aws securityhub describe-standards`, 2026-11-15).
-- **Control IDs:** Security Hub control IDs are used because they stay stable across CIS versions. CIS v5.0.0 section numbers are marked **verify** until checked in Phase 5 against the enabled standard.
+- **Control IDs:** Security Hub control IDs are used because they stay stable across CIS versions. CIS v5.0.0 has 40 controls in Security Hub; section numbers 3.1 to 3.6 below were **verified live on 2026-11-19** with `describe-standards-controls`. Other section numbers stay marked **verify** until checked in Phase 7.
 
 ## Control mapping
 
@@ -15,14 +15,16 @@ How each v1 control **maps to** the CIS AWS Foundations Benchmark and SOC 2 Trus
 | IAM Access Analyzer (external access) | IAM.28 | Access Analyzer enabled (all regions: expected partial) | CC6.3, CC6.6 |
 | Account-level S3 Block Public Access | S3.1 | S3 Block Public Access enabled | CC6.1, CC6.6 |
 | Log bucket: bucket-level BPA, TLS-only policy, versioning | S3.8, S3.5 | Deny HTTP requests; block public access (bucket) | CC6.1, CC6.7 |
-| Log bucket server access logging (not implemented) | CloudTrail.7 (not in CIS v5.0.0 or FSBP) | None in v5.0.0 (CIS v1.2, v1.4 and v3.0 only). Tier 1 exception, see control-tiers.md | CC7.2 |
-| CloudTrail multi-region, management events | CloudTrail.1 | CloudTrail enabled in all regions | CC7.2, CC7.3 |
-| CloudTrail KMS encryption | CloudTrail.2 | CloudTrail logs encrypted at rest with KMS | CC6.1, CC6.7 |
-| CloudTrail log file validation | CloudTrail.4 | Log file validation enabled | CC7.2 |
-| KMS key rotation (both keys) | KMS.4 | Rotation enabled for customer-managed keys | CC6.1 |
-| AWS Config (limited types, daily) | Config.1 (expected partial: limited types / one region) | AWS Config enabled in all regions | CC7.1 |
-| Security Hub (FSBP + CIS) | (the scorecard itself) | Security Hub enabled (verify whether v5 includes it) | CC7.1, CC7.2 |
-| GuardDuty + S3 Protection | GuardDuty.1 (FSBP; not a CIS control: verify) | (none in CIS: verify) | CC6.8, CC7.2, CC7.3 |
+| Log bucket server access logging (not implemented) | CloudTrail.7 (**fails**; corrected 2026-11-19) | CIS v5.0.0 **3.4** (S3 access logging on the CloudTrail bucket). Tier 1 exception, see control-tiers.md. An earlier draft wrongly said it was not in v5.0.0 | CC7.2 |
+| CloudTrail multi-region, management events | CloudTrail.1 | 3.1: CloudTrail enabled with a multi-Region trail and read/write management events | CC7.2, CC7.3 |
+| CloudTrail KMS encryption | CloudTrail.2 | 3.5: CloudTrail encryption at rest | CC6.1, CC6.7 |
+| CloudTrail log file validation | CloudTrail.4 | 3.2: Log file validation enabled | CC7.2 |
+| KMS key rotation (CloudTrail, Config and alerts keys) | KMS.4 | 3.6: Rotation enabled for customer-managed keys | CC6.1 |
+| AWS Config (limited types, continuous, service-linked role) | Config.1 (**fails**: limited types). 267 further controls cannot be evaluated for the same reason, see control-tiers.md | 3.3: AWS Config enabled with the service-linked role, recording all resources | CC7.1 |
+| Config KMS key and delivery to the log bucket | KMS.4 | 3.6 (rotation) | CC6.1, CC6.7 |
+| Security Hub (FSBP + CIS v5.0.0) | (the scorecard itself) | None of the 40 v5.0.0 controls is "Security Hub enabled"; it is the means of measuring them | CC7.1, CC7.2 |
+| GuardDuty + S3 Protection | GuardDuty.1 (FSBP). GuardDuty.5, .6, .7, .8, .9, .11, .12, .13 **fail by design** (plans off, decision Q-o) | None in CIS v5.0.0 | CC6.8, CC7.2, CC7.3 |
+| Real-time alerts (EventBridge + encrypted SNS, 6 rules) | (none: not a Security Hub control) | None. CIS v5.0.0 has no CloudWatch metric-filter/alarm controls (verified 2026-11-19), so this goes beyond the benchmark | CC7.2, CC7.3, CC7.4 |
 | Budget alarm (actual + forecast) | (none) | (none) | CC7.2 (anomaly signal) |
 | IR runbook: compromised credentials | (none, procedural) | (none) | CC7.3, CC7.4, CC7.5 |
 | Change management: PRs, branch protection, plan review, CI static checks, no CI credentials | (none, process) | (none) | CC8.1, CC6.8 |

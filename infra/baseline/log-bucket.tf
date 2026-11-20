@@ -216,15 +216,98 @@ data "aws_iam_policy_document" "logs_bucket" {
     }
   }
 
-  # ---------------------------------------------------------------------------
-  # PHASE 5 (AWS Config) goes here. Add two statements, same shape as 1 and 2:
-  #   - AWSConfigBucketPermissionsCheck: s3:GetBucketAcl + s3:ListBucket on the
-  #     bucket, principal config.amazonaws.com, aws:SourceAccount condition.
-  #   - AWSConfigBucketDelivery: s3:PutObject on
-  #     .../AWSLogs/<account>/Config/*, same principal and condition, plus the
-  #     bucket-owner-full-control ACL condition.
-  # Keep each service on its own prefix; never widen to AWSLogs/<account>/*.
-  # ---------------------------------------------------------------------------
+  # Statements 4-6 follow AWS's documented bucket policy for AWS Config delivery:
+  # https://docs.aws.amazon.com/config/latest/developerguide/s3-bucket-policy.html
+  # Same three statements, each with aws:SourceAccount, plus aws:SourceArn. AWS
+  # documents SourceArn as supported: for the Config service principal it is always
+  # arn:aws:config:<region>:<account>:*, so it limits delivery to a Config delivery
+  # channel in OUR account and region (confused deputy, threat model #6).
+  # History: the first apply failed with InsufficientDeliveryPolicyException. SourceArn
+  # was suspected and removed, but it was NOT the cause; the cause was the Config KMS
+  # key policy (see kms-config.tf and docs/operations/troubleshooting.md #10).
+
+  # 4. Config asks "who owns this bucket?" before delivering (like statement 1 for CloudTrail).
+  statement {
+    sid       = "AWSConfigBucketPermissionsCheck"
+    effect    = "Allow"
+    actions   = ["s3:GetBucketAcl"]
+    resources = [aws_s3_bucket.logs.arn]
+
+    principals {
+      type        = "Service"
+      identifiers = ["config.amazonaws.com"]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "aws:SourceAccount"
+      values   = [var.account_id]
+    }
+
+    condition {
+      test     = "ArnLike"
+      variable = "aws:SourceArn"
+      values   = [local.config_source_arn]
+    }
+  }
+
+  # 5. Config checks that the bucket exists and can be listed.
+  statement {
+    sid       = "AWSConfigBucketExistenceCheck"
+    effect    = "Allow"
+    actions   = ["s3:ListBucket"]
+    resources = [aws_s3_bucket.logs.arn]
+
+    principals {
+      type        = "Service"
+      identifiers = ["config.amazonaws.com"]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "aws:SourceAccount"
+      values   = [var.account_id]
+    }
+
+    condition {
+      test     = "ArnLike"
+      variable = "aws:SourceArn"
+      values   = [local.config_source_arn]
+    }
+  }
+
+  # 6. Config may write its files, only under its own prefix AWSLogs/<account>/Config/
+  #    (never widen to AWSLogs/<account>/*, decision a). bucket-owner-full-control is
+  #    required even with ACLs disabled: BucketOwnerEnforced accepts exactly this value.
+  statement {
+    sid       = "AWSConfigBucketDelivery"
+    effect    = "Allow"
+    actions   = ["s3:PutObject"]
+    resources = ["${aws_s3_bucket.logs.arn}/AWSLogs/${var.account_id}/Config/*"]
+
+    principals {
+      type        = "Service"
+      identifiers = ["config.amazonaws.com"]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "aws:SourceAccount"
+      values   = [var.account_id]
+    }
+
+    condition {
+      test     = "ArnLike"
+      variable = "aws:SourceArn"
+      values   = [local.config_source_arn]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "s3:x-amz-acl"
+      values   = ["bucket-owner-full-control"]
+    }
+  }
 }
 
 resource "aws_s3_bucket_policy" "logs" {

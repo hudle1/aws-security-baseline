@@ -6,3 +6,7 @@ account_id = "123456789012"
 # trail_name                = "baseline-trail"
 # log_retention_days        = 365
 # noncurrent_retention_days = 30
+
+# Where real-time security alerts are sent (SNS email). Terraform creates the
+# subscription as "pending"; you must click the confirmation link in the email.
+alert_email = "you@example.com"

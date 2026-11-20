@@ -1,6 +1,6 @@
 # Component: CloudTrail trail
 
-**Stack:** `infra/baseline` · **Written:** Phase 4 · **Verified live:** 2026-11-18 (status, settings, first log delivery; `validate-logs` pending)
+**Stack:** `infra/baseline` · **Written:** Phase 4 · **Verified live:** 2026-11-18 (status, settings, first log delivery, `validate-logs`)
 
 ## What it is
 
@@ -20,7 +20,7 @@ Without it, nothing else can be investigated: it is the evidence of who did what
 | `enable_log_file_validation` | `true` | Hourly signed digest of every log file hash. CIS v5.0.0 3.2, CloudTrail.4. |
 | `kms_key_id` | CloudTrail key ARN | SSE-KMS at rest. CIS v5.0.0 3.5, CloudTrail.2. |
 | `event_selector` | management events, `read_write_type = "All"` | Decision d: no data events. They cost per event, and GuardDuty S3 Protection covers S3 (Phase 5). |
-| CloudWatch Logs / SNS | not configured | Decision e: Tier 1. See [control-tiers.md](../control-tiers.md) (CloudTrail.5 fails by design). |
+| CloudWatch Logs / SNS | not configured | Decision e: Tier 1. See [control-tiers.md](../control-tiers.md) (CloudTrail.5, an FSBP control, fails by design). |
 | `depends_on` bucket policy | yes | CloudTrail refuses to create a trail whose bucket does not yet allow it to write. |
 
 ## File that defines it
@@ -55,7 +55,9 @@ Log file integrity (the only thing that actually uses the digest files; nothing 
 aws cloudtrail validate-logs --trail-arn <TRAIL_ARN> --start-time 2026-11-18T00:00:00Z --region us-east-1 --profile sandbox-admin
 ```
 
-**Status: pending.** Not yet run; the first digest arrives about an hour after creation.
+**Result on 2026-11-18 (run late in the day, UTC date had rolled to 2026-11-19):** results found for 06:24:59Z to 04:24:59Z the next day. `22/22 digest files valid`, `272/272 log files valid`. No tampering detected. The command exits cleanly and prints only counts when everything is valid; any invalid or missing file is listed by name.
+
+**Alert on tampering (Phase 5):** the `cloudtrail-tamper` EventBridge rule emails on `StopLogging`, `DeleteTrail` and `UpdateTrail`; live-tested 2026-11-19, and the `StopLogging` call itself triggers it. See [alerts.md](alerts.md).
 
 ## How to change it safely
 
@@ -74,6 +76,6 @@ The first copy of management events per region is free. The trail itself costs n
 
 ## Related controls
 
-- Security Hub: CloudTrail.1, CloudTrail.2, CloudTrail.4. CloudTrail.5 fails by design. CloudTrail.7 is not in CIS v5.0.0 or FSBP.
+- Security Hub: CloudTrail.1, CloudTrail.2, CloudTrail.4. CloudTrail.5 (FSBP only) fails by design. **CloudTrail.7 (CIS v5.0.0 3.4) fails**: corrected 2026-11-19, a Phase 4 draft wrongly said it was in neither standard.
 - CIS v5.0.0: 3.1, 3.2, 3.5.
 - SOC 2: CC7.2, CC7.3, CC6.1 (see [compliance-mapping.md](../compliance-mapping.md)).

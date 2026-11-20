@@ -24,40 +24,67 @@ How I'd sequence these controls in a real company. **v1 of this repo demonstrate
 | Control | In v1? | Reasoning (David) |
 | --- | --- | --- |
 | Security Hub (FSBP + CIS) | **Yes** | Cost grows with resources and findings need someone to triage; deployed in v1 to show the scorecard |
-| AWS Config (limited types, daily) | **Yes** | Same as Security Hub, which depends on it |
+| AWS Config (limited types, continuous) | **Yes** | Same as Security Hub, which depends on it |
 | CloudTrail → CloudWatch Logs + CIS metric alarms | No | Cost; GuardDuty already alerts on root credential use and CloudTrail being stopped (decision e) |
 | EventBridge + SNS email alerts: CloudTrail stop/delete/update, KMS key deletion/disable/policy, log bucket policy/versioning, Config recorder stop, GuardDuty severity >= 7, new Access Analyzer findings | **Phase 5, v1** (decision Q-l) | Closes the "no real-time alert" gaps (threat model #1, #4, #7, #8, #9, #21) at about $0. Limits: us-east-1 only; API-call rules depend on the trail running; detect-only |
 | Remote Terraform state (S3, versioned, locking) | No | Threat model #13; not needed for one person on one laptop |
-| GuardDuty in all enabled regions | Pending Q-f | Threat model #10; decided in Phase 5 |
+| GuardDuty in all enabled regions, with cross-region alert forwarding to us-east-1 | **No: first v1.1 item** (decision Q-f) | Threat model #10. v1 is us-east-1 only; compensated by the multi-region trail and the gross-spend budget alarm |
 
 ## Tier 2: organizational maturity (out of scope)
 
 | Control | Reasoning |
 | --- | --- |
-| AWS Organizations + SCPs (deny StopLogging, region deny, protect security services) | The only fix for "a compromised admin can disable everything" |
+| AWS Organizations + SCPs (deny StopLogging, **deny unused regions** (production fix for threat model #10), protect security services) | The only fix for "a compromised admin can disable everything" |
 | Log-archive account with compliance-mode Object Lock | Prevention for log tampering (decision c roadmap) |
 | Delegated security account (GuardDuty / Security Hub admin) | Separates detection from the workload it watches |
 | SIEM (Security Lake / OpenSearch / Splunk) | Needs data volume and analysts to justify |
 | IR testing (tabletops, game days) | Needs a team and runbooks first |
 
-## CIS controls expected to fail by design
+## Controls that fail by design (live results, Phase 5)
 
-Target: CIS AWS Foundations Benchmark **v5.0.0** (latest Security Hub supports, confirmed 2026-11-15). Security Hub control IDs are listed; whether each is part of v5.0.0 is to **verify in Phase 5** against the enabled standard.
+Measured on 2026-11-19, a few minutes after both standards became `READY` (`securityhub get-findings`, status FAILED). Counts will move as Config rules finish evaluating; re-check in Phase 7.
 
-Dates are **provisional** (set 2026-11-15); Phase 5 confirms which controls actually fail and updates the rows. Tier 1 dates use the 90-day maximum from the risk-acceptance template.
+| Result | Count |
+| --- | --- |
+| Passed | 112 |
+| Failed | 31 |
+| Warning: cannot be evaluated (`CONFIG_RECORDER_MISSING_REQUIRED_RESOURCE_TYPES`) | 267 |
 
-| Security Hub control | CIS requirement | Why it fails in v1 | Tier | Compensating control | Target date |
+**The 267 unevaluated controls are the real cost of recording only 7 Config resource types** ([components/config.md](components/config.md)). They are *not measured*, which is different from passed. Recording every type would evaluate them at a cost that grows with the resources in the account. Accepted for v1 (Tier 1); a decision to revisit if the scorecard is shown to others as a score.
+
+**Corrections to earlier drafts (verified live 2026-11-19):**
+- **Q-e answered:** CIS v5.0.0 has **40 controls in Security Hub and none are CloudWatch metric-filter or alarm controls**. Decision e (no CloudWatch Logs) therefore causes **no CIS failure**; the old "CloudWatch.1 to 14" row is removed. (`CloudTrail.5`, CloudWatch Logs on the trail, is an FSBP control only.)
+- **`CloudTrail.7` is in CIS v5.0.0** (control 3.4, "S3 access logging on the CloudTrail bucket") and **fails**. An earlier Phase 4 draft said it was in neither standard; that was wrong. The Tier 1 exception still stands, for the reason given (it needs a second hardened bucket).
+- `Config.1` is CIS 3.3 and FSBP; it fails because of limited types.
+
+Dates are provisional (set 2026-11-15) and use the 90-day maximum from the risk-acceptance template.
+
+### Failed controls that are in CIS v5.0.0
+
+| Security Hub control | What it requires | Why it fails | Tier | Compensating control | Target |
 | --- | --- | --- | --- | --- | --- |
-| CloudWatch.1–14 (verify they exist in v5.0.0) | Metric filters + alarms for root use, IAM/CloudTrail/KMS/S3 policy changes, etc. | Decision e: CloudWatch Logs integration deferred | 1 | **Partially compensated** by GuardDuty: root credential use (`Policy:IAMUser/RootCredentialUsage`) and CloudTrail stopped (`Stealth:IAMUser/CloudTrailLoggingDisabled`). **Not covered:** security group changes, NACL changes, console login failures, IAM policy changes (also route table, VPC, Config, KMS and bucket policy changes) | 2027-02-13 |
-| CloudTrail.5 (CIS v5.0.0 3.4, confirmed against AWS docs 2026-11-18) | Trail integrated with CloudWatch Logs | Decision e | 1 | Logs are in S3 and searchable on demand (Athena / `lookup-events`); no real-time alerting | 2027-02-13 |
-| S3.22 / S3.23 (verify) | Object-level logging for S3 write / read events | Decision d: data events off | 1 | GuardDuty S3 Protection **may flag** anomalous object access or deletes (anomaly-based, needs a baseline) | 2027-02-13 |
-| Config.1 / CIS "Config in all regions" (verify) | Config recording all resources in all regions | Limited resource types, us-east-1 only (cost) | 1 | Config records the security-relevant types in us-east-1; multi-region CloudTrail logs API calls in every region | 2027-02-13 |
-| IAM.28 / Access Analyzer "all regions" (verify) | Access Analyzer in every region | us-east-1 only unless Q-f changes it | 1 | The us-east-1 analyzer covers global IAM roles; regional resources in other regions are uncovered | Phase 5 (Q-f) |
-| CloudTrail.7 | Server access logging on the CloudTrail bucket | **Not in CIS v5.0.0 or FSBP** (it maps to CIS v1.2, v1.4 and v3.0 only; confirmed against AWS docs 2026-11-18), so it will not show as failed in our two standards. Deliberate exception anyway: it needs a second hardened bucket (Phase 4 decision; Checkov `CKV_AWS_18` is skipped in code) | 1 | Bucket-level actions (`PutBucketPolicy`, `DeleteBucket`) are CloudTrail management events; object integrity via log file validation (when `validate-logs` runs) | 2027-02-13 |
-| EC2.2 / EC2.6 (verify) | Default security group restricts all traffic; VPC flow logs | Default VPCs exist in the sandbox | 1 | No workloads run in default VPCs; GuardDuty analyzes VPC Flow Logs independently | Phase 5 (decide) |
-| IAM.6 (verify) | Hardware MFA for root | Root uses virtual/passkey MFA (verify which) | 1 | Root has MFA and no access keys; GuardDuty alerts on root credential use | 2027-02-13 |
-| IAM.18 (verify) | Support role exists (AWSSupportAccess) | Not created | 0 candidate | None needed meanwhile (no users to delegate support to); cheap fix | Phase 3 |
+| Config.1 (CIS 3.3, also FSBP) | Config enabled, recording all resources, with the service-linked role | Only 7 resource types are recorded (cost) | 1 | Config records the security-relevant types; multi-region CloudTrail logs every API call | 2027-02-13 |
+| CloudTrail.7 (CIS 3.4) | S3 access logging on the CloudTrail bucket | Needs a second hardened access-log bucket (Phase 4 decision Q-i; Checkov `CKV_AWS_18` skipped) | 1 | Bucket-level actions are CloudTrail management events; object integrity via log file validation | 2027-02-13 |
+| S3.22, S3.23 | Object-level write / read logging for S3 | Decision d: CloudTrail data events off | 1 | GuardDuty S3 Protection is on (anomaly-based, needs a baseline) | 2027-02-13 |
+| IAM.6 (also FSBP) | Hardware MFA for the root user | Root uses a virtual/passkey MFA (verify which) | 1 | Root has MFA and no access keys; GuardDuty alerts on root credential use | 2027-02-13 |
+| IAM.18 | A support role exists (`AWSSupportAccess`) | Not created | 0 candidate | None needed (no users to delegate support to) | proposed fix, David to decide |
+| Account.1 (also FSBP) | Security contact information set on the account | Not set | 0 candidate | None | proposed fix, David to decide |
+| EC2.7 (also FSBP) | EBS default encryption enabled | Not enabled; no EBS volumes exist | 0 candidate | No EC2 or EBS in the sandbox | proposed fix, David to decide |
 
-## Risk acceptance template
+**Proposed quick wins (not done, need your decision):** `EC2.7`, `Account.1`, `IAM.18` and FSBP `SSM.7` (CRITICAL, "block public sharing of SSM documents") are free account settings. They fit the guardrails stack better than the baseline stack, and would turn 4 failures into passes.
 
-> **Risk:** _what can go wrong and which control is missing or failing (link threat model # / Security Hub control)._ **Owner:** _the named person accountable for the decision._ **Compensating control:** _what reduces the risk meanwhile (e.g. GuardDuty alert instead of a CIS metric alarm)._ **Expiry date:** _when this acceptance must be reviewed or the control implemented (max 90 days for Tier 1 items)._ **Approved by / date:** _name, date._
+### Failed controls that are FSBP only
+
+| Security Hub control(s) | Why it fails | Tier | Compensating control | Target |
+| --- | --- | --- | --- | --- |
+| GuardDuty.5, .7, .8, .9, .11, .12, .13 | The matching GuardDuty plans (EKS audit/runtime, EC2/ECS runtime, EBS malware, RDS login) are `DISABLED` by decision Q-o: no such workloads, billed per use | 1 | Foundational detection and S3 Protection stay on | 2027-02-13 |
+| GuardDuty.6 | Lambda Protection `DISABLED` | 1 | **Enable it when P2's Lambda (`guardduty-triage`) is deployed**; expected to pass then | with P2 |
+| Inspector.1, .2, .3, .4 | Amazon Inspector not enabled (EC2, ECR, Lambda code and standard scanning). No such workloads; per-resource cost | 1 | None needed until workloads exist | 2027-02-13 |
+| Macie.1 | Macie not enabled; no S3 data to classify; cost | 1 | Log bucket holds logs only | 2027-02-13 |
+| EC2.10, .55, .56, .57, .58, .60 | VPC interface endpoints for EC2, ECR, SSM etc. in the default VPC. Interface endpoints cost money per hour; nothing runs in the VPC | 1 | No workloads in default VPCs | 2027-02-13 |
+| CloudTrail.5 | Decision e: no CloudWatch Logs integration on the trail | 1 | Logs in S3 and `lookup-events`; EventBridge alerts cover trail tampering | 2027-02-13 |
+| S3.9 | Server access logging on S3 buckets (same reason as CloudTrail.7) | 1 | As CloudTrail.7 | 2027-02-13 |
+| SSM.6 | SSM Automation CloudWatch logging; no Automation in use | 1 | None needed | 2027-02-13 |
+| SSM.7 | SSM document public sharing block not set (see quick wins above) | 0 candidate | No SSM documents exist | proposed fix |
+
+Not in the failed list but previously predicted: `EC2.2` / `EC2.6` (default security group, VPC flow logs) and `IAM.28` were not among the 31 failures at this check; whether they are unevaluated (`WARNING`) or passed is **not yet verified**: check in Phase 7.

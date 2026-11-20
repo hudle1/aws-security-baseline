@@ -7,7 +7,7 @@ v1 scope:
 - CloudTrail: multi-region, KMS-encrypted, log file validation
 - GuardDuty
 - Security Hub: enable BOTH AWS Foundational Security Best Practices AND the CIS AWS Foundations Benchmark (latest version Security Hub supports; verify in Phase 5). Default standards still off; we enable these two explicitly in Terraform.
-- AWS Config: limited resource types, daily recording
+- AWS Config: limited resource types, continuous recording (decision Q-m)
 - IAM password policy
 - Account-level S3 Block Public Access
 - IAM Access Analyzer (external access analyzer, account zone of trust)

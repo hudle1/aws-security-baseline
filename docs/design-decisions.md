@@ -33,11 +33,14 @@ David's reasoning: management events cover the attacks in the threat model. Guar
 Options: v1; Tier 1 later.
 Choice: **Tier 1 later.**
 David's reasoning: with the CIS standard enabled, the CIS alarm controls may fail. Each is listed in `control-tiers.md` as Tier 1 with the reason (cost, and GuardDuty already alerts on root credential use and CloudTrail being stopped). Phase 5: check whether the current Security Hub CIS version still includes those controls.
+**Phase 5 answer (verified 2026-11-19):** CIS v5.0.0 has 40 controls in Security Hub and **none are CloudWatch metric-filter or alarm controls**, so decision e causes no CIS failure. The Phase 2 premise ("CIS alarm controls may fail") applied to older CIS versions.
 
 **Q-f. Detection regions (OPEN, decide in Phase 5).**
 CloudTrail is multi-region, but GuardDuty, Config and Security Hub are regional and v1 deploys them in us-east-1 only. An attacker acting in another enabled region is logged but not detected (threat model #10).
 Options: (1) GuardDuty in all 17 enabled regions (near-$0 when idle, more resources/teardown); (2) us-east-1 only, documented residual risk; (3) opt out of unused opt-in regions (the 17 default regions can't be disabled without Organizations SCPs).
-Choice: _pending_.
+Choice: **2, us-east-1 only for v1. Decided by David 2026-11-18.**
+Compensating controls: multi-region CloudTrail (evidence in every region) and the gross-spend budget alarm (catches cost spikes such as crypto-mining in any region).
+Roadmap: first v1.1 item is "GuardDuty in all enabled regions with cross-region alert forwarding to us-east-1". Production / Tier 2 fix: an SCP denying unused regions. Threat model #10 residual risk updated to match.
 
 **Scope change: CIS in scope.**
 Security Hub enables both AWS FSBP and the CIS AWS Foundations Benchmark. Latest supported version confirmed as **v5.0.0** via `aws securityhub describe-standards` (2026-11-15); which controls v5.0.0 contains is checked in Phase 5. Default standards stay off. Prowler gives an independent CIS report in Phase 7.
@@ -45,11 +48,11 @@ Security Hub enables both AWS FSBP and the CIS AWS Foundations Benchmark. Latest
 ### Phase 4 design choices (2026-11-18)
 
 **Q-i. Should the CloudTrail bucket have S3 server access logging (CloudTrail.7)?**
-Finding: CloudTrail.7 maps to CIS v1.2, v1.4 and v3.0 only. It is not in CIS v5.0.0 or FSBP (checked against the AWS Security Hub control docs, 2026-11-18), so neither enabled standard checks for it.
+Finding (**corrected 2026-11-19**): an earlier version of this note said CloudTrail.7 was in neither enabled standard. That was wrong. With CIS v5.0.0 enabled, Security Hub reports `CloudTrail.7` as a CIS v5.0.0 control (3.4, "S3 access logging on the CloudTrail bucket") and it **fails**. The Tier 1 exception below still stands; only the premise changed.
 Options: (1) Tier 1 exception, no second bucket; (2) in scope: a second hardened access-log bucket plus logging on the log bucket.
 Choice: **1, Tier 1 exception.**
 Reasoning: a second bucket would itself need BPA, versioning and a policy, and Checkov would then flag that bucket for having no logging, which is a loop. Recorded in `control-tiers.md`; `CKV_AWS_18` is skipped in code with this reason.
-Related finding: CloudTrail.5 (CloudWatch Logs) is CIS v5.0.0 3.4, so decision e makes it fail by design. It was already listed in `control-tiers.md` and is now marked as confirmed.
+Related finding (**corrected 2026-11-19**): CloudTrail.5 (CloudWatch Logs) is an FSBP control only, not CIS v5.0.0 3.4 as this note said. It still fails by design because of decision e.
 
 **Q-j. Log retention.**
 Options: 90 days (cheaper, shorter evidence window); 365 days (covers a typical SOC 2 audit window and slow investigations).
@@ -78,6 +81,30 @@ Cost note: "about $0" holds for EventBridge and SNS email at this volume. If the
 Effect on other docs: `control-tiers.md` alert rows now say "Phase 5, v1". Threat model rows #1, #4, #7, #8, #9 and #21 still say "Tier 1: EventBridge rule" in their residual-risk column. **David decided (2026-11-18): update them when Phase 5 ships, not now.** This is in the Phase 5 definition of done in `CLAUDE.md`.
 SNS topic encryption: decided in Phase 5. David's current leaning is a customer-managed key (most secure, about $1/month) if EventBridge cannot publish to a topic encrypted with the AWS-managed `aws/sns` key (to verify first).
 The Phase 4 stack stays deployed through Phase 5 (it is the base Phase 5 builds on). Teardown happens in Phase 7.
+
+### Phase 5 design choices (2026-11-18)
+
+**Q-m. Config recording frequency.**
+Options: (1) continuous ($0.003 per configuration item, billed only when a resource changes); (2) daily ($0.012 per item, one item per resource per day).
+Choice: **1, continuous.** Decided by David 2026-11-18. This replaces "daily" in the `CLAUDE.md` v1 scope, `architecture.md`, `control-tiers.md` and `compliance-mapping.md`.
+David's reasoning: continuous bills only on change, so in a low-change sandbox it is likely cheaper than daily, and it records a change within minutes instead of up to 24 hours (supports threat model #7).
+
+**Q-n. Config IAM role.**
+Options: (1) AWS service-linked role `AWSServiceRoleForConfig`; (2) custom role.
+Choice: **1, service-linked role.** Nothing for us to over-broaden. Implementation notes: Terraform creates the role explicitly (`aws_iam_service_linked_role`) because a fresh account does not have it until Config is first enabled. The role has **no KMS permissions**, so with an SLR Config delivers to S3 as the `config.amazonaws.com` service principal; the Config key policy therefore grants that principal (with `aws:SourceAccount` and `aws:SourceArn`), not the role (see troubleshooting #10).
+
+**Q-o. GuardDuty protection plans.**
+Options: (1) S3 Protection only, every other paid plan explicitly `DISABLED`; (2) add Lambda; (3) everything on.
+Choice: **1.** `guardduty-triage` (P2, the next sprint project) will deploy a Lambda: **enable Lambda Protection when P2's Lambda is deployed.**
+
+**Q-p. SNS topic encryption.**
+Finding (verified 2026-11-18 against the AWS Knowledge Center article "SNS not getting EventBridge notification" and the SNS key-management docs): EventBridge cannot publish to a topic encrypted with the AWS-managed `aws/sns` key, because that key's policy cannot be edited to grant EventBridge access. The key policy for a customer-managed key also must not use `aws:SourceAccount` / `aws:SourceArn` conditions for EventBridge delivery.
+Options: (1) customer-managed key (about $1/month); (2) `aws/sns` (does not work); (3) unencrypted with a justified skip.
+Choice: **1, customer-managed key.** Scoping to our rules is done in the topic policy (`aws:SourceArn` = our rule ARNs) instead.
+
+**Q-q. How the KMS tamper rule matches keys.**
+Options: (1) our three keys by ID and ARN; (2) any KMS key in the account; (3) key ID only.
+Choice: **2, any KMS key in the account.** Never stale, and a new key is covered automatically. Trade-off: also alerts on harmless key work in the sandbox.
 
 ### Phase 3 design choices (2026-11-16)
 
