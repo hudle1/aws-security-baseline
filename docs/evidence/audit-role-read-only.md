@@ -4,21 +4,21 @@ Prowler runs only with the `sandbox-audit` profile, an IAM Identity Center permi
 
 ## 1. What the role can do (read with the admin profile, read-only calls)
 
-Checked 2026-11-20:
+Checked twice on 2026-11-20 (MT): before and after the permission set was re-provisioned in IAM Identity Center.
 
 ```powershell
 aws iam list-attached-role-policies --role-name <ROLE_NAME> --profile sandbox-admin
 aws iam list-role-policies --role-name <ROLE_NAME> --profile sandbox-admin
 ```
 
-| Item | Result |
-| --- | --- |
-| Identity of the profile | `arn:aws:sts::<ACCOUNT_ID>:assumed-role/AWSReservedSSO_SecurityAuditReadOnly_<HASH>/<USER>` |
-| Attached managed policies | **`SecurityAudit` only** |
-| Inline policies | 0 |
-| Permissions boundary | none |
+| Item | Before re-provisioning | After re-provisioning (current) |
+| --- | --- | --- |
+| Identity of the profile | `arn:aws:sts::<ACCOUNT_ID>:assumed-role/AWSReservedSSO_SecurityAuditReadOnly_<HASH>/<USER>` | same |
+| Attached managed policies | `SecurityAudit` only | **`SecurityAudit` and `ViewOnlyAccess`** |
+| Inline policies | 0 | 0 |
+| Permissions boundary | none | none |
 
-**Gap to note:** the permission set was described as SecurityAudit + ViewOnlyAccess, but only `SecurityAudit` is attached to the role. If a Prowler check fails with an access error for a service outside SecurityAudit, attach the AWS managed policy `ViewOnlyAccess` to the permission set (read-only) and re-provision. Any check Prowler could not run is listed in the Prowler summary in `docs/compliance/`.
+Adding a policy to a permission set does not reach the account's role until the permission set is re-provisioned; the first check, made right after the change, still showed only `SecurityAudit`. Both policies are AWS managed, read-only policies. Any check Prowler cannot run for lack of access is listed in the summary in `docs/compliance/`.
 
 ## 2. A write attempt is refused (reported by David, not re-run by Claude)
 

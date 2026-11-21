@@ -111,6 +111,13 @@ Choice: **2, any KMS key in the account.** Never stale, and a new key is covered
 - **Test finding:** the real GuardDuty `Stealth:IAMUser/CloudTrailLoggingDisabled` finding from the StopLogging test stays unarchived until the Phase 7 screenshots, then is archived.
 - **`docs/operations/deploy.md`:** written in Phase 7.
 
+### Open question (added 2026-11-20, Phase 7a)
+
+**Q-s. Fix IAM.6 (hardware MFA on the root user) or keep it as an accepted risk?**
+Facts (checked live): root MFA is on, it is a virtual authenticator-app device, there are no root access keys, and Security Hub rates IAM.6 CRITICAL. The Prowler CIS run (docs/compliance/) reports the same control.
+Options: (1) **keep the accepted risk** (Tier 1, current): costs nothing; compensating controls are root MFA, no root keys, SSO for daily work and CloudTrail; the scorecard keeps one CRITICAL failure that the README must explain. (2) **register a FIDO2 hardware security key as root MFA** (one-time cost for the key, roughly $25 to $55; buying two and storing one separately is the usual advice): IAM.6 should then pass; the cost is the key, the effort, and a recovery plan if it is lost. Whether Security Hub also requires the virtual device to be removed is unverified. (3) **add a root `ConsoleLogin` alert** (EventBridge rule, v1.1) as an extra compensating control with either option: free, and detects root use in about a minute like the other alert rules.
+Choice: **pending David.**
+
 ### Phase 3 design choices (2026-11-16)
 
 **Q-g. Should the IAM password policy force password expiry (`max_password_age`)?**
