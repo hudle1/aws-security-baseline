@@ -1,0 +1,11 @@
+# aws cloudtrail validate-logs --trail-arn <TRAIL_ARN> --start-time 2026-11-18T07:00:00Z --end-time 2026-11-21T01:56:55Z
+# Trail created 2026-11-18T07:24:59Z (CreateTrail in CloudTrail). Account ID and bucket suffix redacted.
+# Exit code: 0
+
+Validating log files for trail arn:aws:cloudtrail:us-east-1:<ACCOUNT_ID>:trail/baseline-trail between 2026-11-18T07:00:00Z and 2026-11-21T01:56:55Z
+
+Results requested for 2026-11-18T07:00:00Z to 2026-11-21T01:56:55Z
+Results found for 2026-11-18T07:00:00Z to 2026-11-21T01:24:59Z:
+
+67/67 digest files valid
+888/888 log files valid

@@ -347,3 +347,13 @@ aws cloudwatch get-metric-statistics --region us-east-1 --profile sandbox-admin 
 
 (`NumberOfNotificationsFailed` should have no datapoints.) The real fix is a distinct subject per rule: v1.1 item in [control-tiers.md](../control-tiers.md). Until then, a real incident email can be missed if the conversation is muted, filtered or not opened.
 
+## 20. `verify.ps1`: KMS rotation checks fail with an empty error message
+
+**Symptom:** the three "KMS key rotation" rows show `FAIL` and `ERROR:` followed by nothing.
+
+**Cause (two stacked problems):**
+1. `aws kms get-key-rotation-status --key-id alias/baseline-cloudtrail` is rejected by AWS: `InvalidArnException: Key Aliases are not supported for this operation.` (other KMS calls such as `describe-key` do accept aliases).
+2. The message was empty because, in Windows PowerShell 5.1 with `$ErrorActionPreference = 'Stop'`, any stderr text from a native command becomes a terminating error whose message is blank, so the script's own message ("aws kms ... failed") never showed.
+
+**Fix:** resolve the alias to a key ID first (`describe-key` gives `KeyMetadata.KeyId`), then call `get-key-rotation-status` with the ID. In the script's AWS wrapper, set `$ErrorActionPreference = 'Continue'` for the call and decide success from `$LASTEXITCODE`, so real error messages surface. Same family as #13 and #18 (PowerShell 5.1 and native commands).
+

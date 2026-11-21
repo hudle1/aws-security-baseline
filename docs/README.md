@@ -48,5 +48,6 @@ Each page covers: what it is, why we have it, configuration, defining file, how 
 
 ## Other
 
+- [evidence/](evidence/README.md): redacted proof from the live account: `verify.ps1` output, CloudTrail log validation, teardown plan (Phase 7a).
 - `compliance/`: independent Prowler CIS report, account ID redacted (Phase 7).
 - `../CLAUDE.md`: project rules, including the documentation standard and each phase's definition of done.

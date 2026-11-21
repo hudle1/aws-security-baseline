@@ -1,0 +1,50 @@
+aws-security-baseline: control verification (read-only)
+Date (UTC): 2026-11-21 01:56:30   Region: us-east-1   Profile: sandbox-admin
+Account: <ACCOUNT_ID> (matches account_id in baseline.tfvars)
+
+== guardrails stack: 8 of 8 passed
+
+Result Control                                         Detail                                                                                      
+------ -------                                         ------                                                                                      
+PASS   IAM password policy (CIS 1.7/1.8)               min length 20 (>=14), reuse 24 (>=24), upper/lower/number/symbol all required: True         
+PASS   Account S3 Block Public Access (4 flags)        BlockPublicAcls=True IgnorePublicAcls=True BlockPublicPolicy=True RestrictPublicBuckets=True
+PASS   IAM Access Analyzer (account zone of trust)     1 ACTIVE analyzer(s) of type ACCOUNT                                                        
+PASS   Budget monthly-10-usd (limit + 3 notifications) limit 10.0 USD/MONTHLY, notifications: 2 actual + 1 forecasted                              
+PASS   EBS default encryption (EC2.7)                  EbsEncryptionByDefault=True                                                                 
+PASS   Security contact set (Account.1)                SECURITY contact exists with name, email and phone (values not shown)                       
+PASS   Support role with AWSSupportAccess (IAM.18)     role exists; AWSSupportAccess attached: True                                                
+PASS   SSM public document sharing blocked (SSM.7)     SettingValue=Disable
+
+== baseline stack: 27 of 27 passed
+
+Result Control                                               Detail                                                                                      
+------ -------                                               ------                                                                                      
+PASS   CloudTrail exists, multi-region                       IsMultiRegionTrail=True, global service events=True                                         
+PASS   CloudTrail is logging                                 IsLogging=True, last delivery error: none                                                   
+PASS   CloudTrail log file validation (CIS 3.2)              LogFileValidationEnabled=True                                                               
+PASS   CloudTrail encrypted with KMS (CIS 3.5)               KmsKeyId set (value not shown)                                                              
+PASS   Log bucket: versioning Enabled                        Status=Enabled                                                                              
+PASS   Log bucket: Block Public Access (4 flags)             BlockPublicAcls=True IgnorePublicAcls=True BlockPublicPolicy=True RestrictPublicBuckets=True
+PASS   Log bucket: default encryption aws:kms                SSEAlgorithm=aws:kms                                                                        
+PASS   Log bucket: ACLs disabled (BucketOwnerEnforced)       ObjectOwnership=BucketOwnerEnforced                                                         
+PASS   Log bucket: policy denies non-TLS requests            Deny statement on aws:SecureTransport=false present: True                                   
+PASS   KMS key rotation: alias/baseline-cloudtrail (CIS 3.6) KeyRotationEnabled=True                                                                     
+PASS   KMS key rotation: alias/baseline-config (CIS 3.6)     KeyRotationEnabled=True                                                                     
+PASS   KMS key rotation: alias/baseline-alerts (CIS 3.6)     KeyRotationEnabled=True                                                                     
+PASS   Config recorder: 7 required resource types            frequency=CONTINUOUS, missing types: none                                                   
+PASS   Config recorder is recording                          recording=True, lastStatus=SUCCESS                                                          
+PASS   Config delivers to the log bucket                     history delivery lastStatus=SUCCESS                                                         
+PASS   GuardDuty detector enabled                            Status=ENABLED, publishing=FIFTEEN_MINUTES                                                  
+PASS   GuardDuty S3 Protection ENABLED                       S3_DATA_EVENTS=ENABLED                                                                      
+PASS   Security Hub: FSBP standard READY                     StandardsStatus=READY                                                                       
+PASS   Security Hub: CIS v5.0.0 standard READY               StandardsStatus=READY                                                                       
+PASS   SNS alert topic: subscription confirmed               confirmed=1, pending=0                                                                      
+PASS   SNS alert topic: encrypted with a CMK                 KmsMasterKeyId set (value not shown)                                                        
+PASS   Alert rule ENABLED: cloudtrail-tamper                 State=ENABLED                                                                               
+PASS   Alert rule ENABLED: kms-tamper                        State=ENABLED                                                                               
+PASS   Alert rule ENABLED: logbucket-tamper                  State=ENABLED                                                                               
+PASS   Alert rule ENABLED: config-tamper                     State=ENABLED                                                                               
+PASS   Alert rule ENABLED: guardduty-high                    State=ENABLED                                                                               
+PASS   Alert rule ENABLED: access-analyzer-active            State=ENABLED
+
+TOTAL: 35 of 35 passed
