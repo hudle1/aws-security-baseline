@@ -81,9 +81,9 @@ Enabled in the repository settings (Security, Advanced Security) and verified th
 | Private vulnerability reporting | Enabled | Used by [SECURITY.md](../../SECURITY.md) |
 | Dependency graph and Dependabot alerts | Enabled | Alerts on known-vulnerable dependencies |
 | Dependabot version updates | Configured in `.github/dependabot.yml` | GitHub Actions, Terraform (both stacks) and the pinned checkov. Dependabot *security updates* are a separate setting and are currently off |
-| CodeQL default setup | Configured: language `actions` (the workflow files), default query suite, weekly schedule | First analysis on `main` (2026-11-20): 0 results, 0 open alerts. It is **not** a required check, so it does not gate merges. It did not run on pull requests that changed no workflow files |
+| CodeQL default setup | Configured: language `actions` (the workflow files), default query suite, weekly schedule | First analysis on `main` (2026-11-20): 0 results, 0 open alerts. It is **not** a required check, so it does not gate merges. On PR #11 it appeared as two checks, `Analyze (actions)` and `CodeQL`, both passing; it was **absent from the earlier checks of the same PR** (the first push showed only the nine workflow checks), so do not assume it runs on every commit |
 
-**Not required yet:** making CodeQL a required check is a v1.1 item. When done, add the check's exact name (read it from the API as in the section above) to the required checks, and keep the rule that a required check must have no path filter: a CodeQL run that is skipped counts as passing.
+**Not required yet:** making CodeQL a required check is a v1.1 item. When done, add the exact check names (`Analyze (actions)` and `CodeQL` as seen on PR #11; confirm with the API as in the section above) to the required checks, and keep the rule that a required check must have no path filter: a CodeQL run that is skipped counts as passing.
 
 ## How to change it safely
 
