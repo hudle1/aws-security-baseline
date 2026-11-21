@@ -61,7 +61,15 @@ terraform -chdir=infra/guardrails test
 
 ## Required status checks on `main`
 
-Pending: to be set after David approves the names (see the PR description for the exact list). Rules: strict mode on (the branch must be up to date with `main` before merging); every check above required; no check may have a path filter or an `if:`.
+Set on 2026-11-20 (branch protection, classic rule). All nine checks in the table above are required, each pinned to the GitHub Actions app so another app cannot satisfy a check by reusing its name, and **strict mode is on** (a branch must be up to date with `main` before merging). Settings that were already there are unchanged: pull request required, 0 approvals, rules apply to admins, no force pushes, no deletions.
+
+Check the live setting (read-only):
+
+```powershell
+gh api repos/hudle1/aws-security-baseline/branches/main/protection --jq ".required_status_checks"
+```
+
+Rules: no check may have a path filter or an `if:`. A skipped required check counts as passing, and a never-run one blocks the PR forever.
 
 ## How to change it safely
 
