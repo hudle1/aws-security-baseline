@@ -333,3 +333,17 @@ Also: asserting on an attribute that is only known after apply (the trail's `kms
 
 Same cause and general fix as #13 (quotes stripped from inline JSON). Write the filter to a file and pass `--filters "file://<path>"`. Exact command: see [account-quick-wins.md](../components/account-quick-wins.md).
 
+## 19. Security alert emails "did not arrive" (they were grouped into an old Gmail conversation)
+
+**Symptom:** three alert tests (GuardDuty sample, CloudTrail stop/start, Config stop/start) looked like they sent no email; a Gmail search for new alerts showed only the Access Analyzer one.
+
+**Cause:** nothing was lost. Every alert has the same subject, so Gmail files each new one into the existing conversation with the earlier alerts. The conversation list shows only the latest message's time and preview, and a date-restricted search used the wrong date. Checked first on the AWS side: all six rules matched once with no failed invocations, SNS published and delivered the same number of messages with none failed, and the subscription was confirmed.
+
+**Fix / how to verify:** expand the conversation and read the individual messages, or search `"SECURITY ALERT"` with a date range wide enough to include the test (Gmail's `after:` uses the account's time zone). To prove the AWS side without trusting the inbox:
+
+```powershell
+aws cloudwatch get-metric-statistics --region us-east-1 --profile sandbox-admin --namespace AWS/SNS --metric-name NumberOfNotificationsDelivered --dimensions Name=TopicName,Value=baseline-security-alerts --start-time <UTC_START> --end-time <UTC_END> --period 300 --statistics Sum
+```
+
+(`NumberOfNotificationsFailed` should have no datapoints.) The real fix is a distinct subject per rule: v1.1 item in [control-tiers.md](../control-tiers.md). Until then, a real incident email can be missed if the conversation is muted, filtered or not opened.
+
