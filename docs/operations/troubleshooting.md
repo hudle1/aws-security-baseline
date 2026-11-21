@@ -347,3 +347,29 @@ aws cloudwatch get-metric-statistics --region us-east-1 --profile sandbox-admin 
 
 (`NumberOfNotificationsFailed` should have no datapoints.) The real fix is a distinct subject per rule: v1.1 item in [control-tiers.md](../control-tiers.md). Until then, a real incident email can be missed if the conversation is muted, filtered or not opened.
 
+## 20. `verify.ps1`: KMS rotation checks fail with an empty error message
+
+**Symptom:** the three "KMS key rotation" rows show `FAIL` and `ERROR:` followed by nothing.
+
+**Cause (two stacked problems):**
+1. `aws kms get-key-rotation-status --key-id alias/baseline-cloudtrail` is rejected by AWS: `InvalidArnException: Key Aliases are not supported for this operation.` (other KMS calls such as `describe-key` do accept aliases).
+2. The message was empty because, in Windows PowerShell 5.1 with `$ErrorActionPreference = 'Stop'`, any stderr text from a native command becomes a terminating error whose message is blank, so the script's own message ("aws kms ... failed") never showed.
+
+**Fix:** resolve the alias to a key ID first (`describe-key` gives `KeyMetadata.KeyId`), then call `get-key-rotation-status` with the ID. In the script's AWS wrapper, set `$ErrorActionPreference = 'Continue'` for the call and decide success from `$LASTEXITCODE`, so real error messages surface. Same family as #13 and #18 (PowerShell 5.1 and native commands).
+
+## 21. `pipx install prowler` fails on Windows: "No such file or directory" under `msgraph\generated\...`
+
+**Status: open (2026-11-20). Prowler is not installed yet.**
+
+**Symptom**
+
+```text
+ERROR: Could not install packages due to an OSError: [Errno 2] No such file or directory: 'C:\...envs\prowler\Lib\site-packages\msgraph\generated\communications\call_records\microsoft_graph_call_records_get_direct_routing_calls_with_from_date_time_with_to_date_time\..._request_builder.py'
+```
+
+(pip reports it against whichever package it was installing at the time, for example `filelock`; the real cause is the file that could not be written.)
+
+**Cause:** Prowler depends on `msgraph`, whose files have very long names. The full path exceeds Windows' 260-character limit, and Windows long-path support is off (`LongPathsEnabled = 0`). Moving the pipx home to `C:\pipx` did not help: even `C:\pv` would give a path of about 272 characters.
+
+**Fix options:** (1) enable long paths once, from an elevated PowerShell, then open a new terminal and retry: `New-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" -Name LongPathsEnabled -Value 1 -PropertyType DWORD -Force` (a system-wide setting); or (2) run Prowler from its Docker image instead. Record the option used here when resolved.
+

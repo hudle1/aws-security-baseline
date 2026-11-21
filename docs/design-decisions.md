@@ -34,6 +34,7 @@ Options: v1; Tier 1 later.
 Choice: **Tier 1 later.**
 David's reasoning: with the CIS standard enabled, the CIS alarm controls may fail. Each is listed in `control-tiers.md` as Tier 1 with the reason (cost, and GuardDuty already alerts on root credential use and CloudTrail being stopped). Phase 5: check whether the current Security Hub CIS version still includes those controls.
 **Phase 5 answer (verified 2026-11-19):** CIS v5.0.0 has 40 controls in Security Hub and **none are CloudWatch metric-filter or alarm controls**, so decision e causes no CIS failure. The Phase 2 premise ("CIS alarm controls may fail") applied to older CIS versions.
+**Correction (2026-11-20, Prowler):** the statement above holds for Security Hub's CIS v5.0.0 list only. Prowler, which implements the benchmark text, reports CIS 4.1 to 4.15 (CloudWatch metric filters and alarms) as 15 failures caused by decision e. See docs/compliance/prowler-cis-v5.0-summary.md and docs/control-tiers.md.
 
 **Q-f. Detection regions (OPEN, decide in Phase 5).**
 CloudTrail is multi-region, but GuardDuty, Config and Security Hub are regional and v1 deploys them in us-east-1 only. An attacker acting in another enabled region is logged but not detected (threat model #10).
@@ -110,6 +111,18 @@ Choice: **2, any KMS key in the account.** Never stale, and a new key is covered
 - **Quick wins:** fix `EC2.7` (EBS default encryption), `Account.1` (security contact), `IAM.18` (support role) and `SSM.7` (block public SSM document sharing) in the guardrails stack, as a small follow-up PR after Phase 5 merges. Account contact details live in `guardrails.tfvars` (gitignored), placeholders in the example file.
 - **Test finding:** the real GuardDuty `Stealth:IAMUser/CloudTrailLoggingDisabled` finding from the StopLogging test stays unarchived until the Phase 7 screenshots, then is archived.
 - **`docs/operations/deploy.md`:** written in Phase 7.
+
+### Open question (added 2026-11-20, Phase 7a)
+
+**Q-s. Fix IAM.6 (hardware MFA on the root user) or keep it as an accepted risk?**
+Facts (checked live): root MFA is on, it is a virtual authenticator-app device, there are no root access keys, and Security Hub rates IAM.6 CRITICAL. The Prowler CIS run (docs/compliance/) reports the same control.
+Options: (1) **keep the accepted risk** (Tier 1, current): costs nothing; compensating controls are root MFA, no root keys, SSO for daily work and CloudTrail; the scorecard keeps one CRITICAL failure that the README must explain. (2) **register a FIDO2 hardware security key as root MFA** (one-time cost for the key, roughly $25 to $55; buying two and storing one separately is the usual advice): IAM.6 should then pass; the cost is the key, the effort, and a recovery plan if it is lost. Whether Security Hub also requires the virtual device to be removed is unverified. (3) **add a root `ConsoleLogin` alert** (EventBridge rule, v1.1) as an extra compensating control with either option: free, and detects root use in about a minute like the other alert rules.
+Choice: **pending David.**
+
+**Q-t. What to do with the default-VPC findings Prowler found (CIS 3.7 flow logs, 5.2 default NACL, 5.5 default security group)?**
+Facts: the account's default VPC is unused (0 network interfaces). Security Hub shows these three as WARNING (not evaluated); Prowler with `--scan-unused-services` shows FAIL.
+Options: (1) **accept** as Tier 1 (current proposal in control-tiers.md): free, nothing runs there; the scorecard keeps three visible failures to explain. (2) **delete the default VPC** in us-east-1: free, removes the three findings and the permissive defaults at the root; cost is that a later EC2 or Lambda-in-VPC experiment must create a VPC first, and whether Security Hub and Prowler then report these as passed or as "no resource" is unverified. (3) **enable flow logs** on the default VPC and restrict the default NACL and security group: needs a log destination, so it adds cost and Terraform code for a VPC nothing uses.
+Choice: **pending David.**
 
 ### Phase 3 design choices (2026-11-16)
 
