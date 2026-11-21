@@ -58,6 +58,22 @@ Current state before this change (read-only checks, 2026-11-20): EBS default enc
 
 When Security Hub re-evaluates, **4 of the 31 failed controls** (EC2.7, Account.1, IAM.18, SSM.7) should pass: 27 failures would remain, all documented in [control-tiers.md](../control-tiers.md).
 
-**Status: not yet confirmed.** Checked a few minutes after the apply (2026-11-20), all four still showed `FAILED` with an update time from *before* the apply, so Security Hub had not re-evaluated them yet. Re-check later and record the real result here (and the final counts in Phase 7). Do not treat these four as passing until Security Hub says so.
+**Status: confirmed (2026-11-20, re-checked after Security Hub re-evaluated).** All four controls report `PASSED` with update times of 18:36-18:37 UTC, after the apply:
+
+| Control | Compliance status | Last updated (UTC) |
+| --- | --- | --- |
+| Account.1 | PASSED | 18:36:39 |
+| EC2.7 | PASSED | 18:37:18 |
+| IAM.18 | PASSED | 18:36:34 |
+| SSM.7 | PASSED | 18:36:31 |
+
+The same query showed 27 active `FAILED` findings, which matches 31 minus 4. Command used (PowerShell 5.1 needs the filter in a file, see troubleshooting #13):
+
+```powershell
+'{"RecordState":[{"Value":"ACTIVE","Comparison":"EQUALS"}]}' | Set-Content -Encoding ascii $env:TEMP\sh-filter.json
+aws securityhub get-findings --profile sandbox-admin --region us-east-1 --filters "file://$env:TEMP\sh-filter.json" --max-items 1000 --query "Findings[].{G:GeneratorId,S:Compliance.Status,U:UpdatedAt}"
+```
+
+Final counts for the README are still taken in Phase 7.
 
 **Terraform state:** `terraform plan` after the apply reports no changes.

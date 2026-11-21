@@ -1,0 +1,156 @@
+# CI: static checks and mock-provider tests for both Terraform stacks.
+# Reading guide: docs/operations/ci.md
+#
+# SECURITY MODEL
+#  - NO AWS credentials anywhere in this file (project rule: CI is static checks only).
+#    Nothing here can read or change the AWS account, even if a step is compromised.
+#  - Trigger is `pull_request`, never `pull_request_target`. A pull_request run from a
+#    fork gets a read-only token and no secrets. pull_request_target runs with the BASE
+#    repo's privileges against code from the PR, which is the classic way CI gets owned.
+#  - Every action is pinned to a full commit SHA (a tag can be moved to malicious code;
+#    a SHA cannot). The version is in the trailing comment; Dependabot bumps both.
+#  - Token permissions are read-only, and set at the top so a new job cannot silently
+#    get more.
+#
+# BRANCH PROTECTION NOTE
+#  - There is deliberately NO `paths:` filter and NO job-level `if:`. A required check
+#    that is skipped is reported as passing, so a skipped required check would let an
+#    unchecked change merge. Every job runs on every PR and on every push to main.
+
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  fmt:
+    name: fmt
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: 1.17.1
+          terraform_wrapper: false
+      # Fails (exit 3) if any .tf or .tftest.hcl file is not canonically formatted.
+      # -check changes nothing; -recursive covers both stacks and their tests/ folders.
+      - run: terraform fmt -check -recursive -diff
+
+  validate:
+    name: validate (${{ matrix.stack }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        stack: [guardrails, baseline]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: 1.17.1
+          terraform_wrapper: false
+      # -backend=false: no state backend is contacted. Providers are downloaded from the
+      # public registry and verified against infra/<stack>/.terraform.lock.hcl.
+      # -lockfile=readonly: fail instead of silently rewriting the lock file, so a
+      # provider version cannot change without a reviewed lock-file change.
+      - run: terraform -chdir=infra/${{ matrix.stack }} init -backend=false -input=false -lockfile=readonly
+      - run: terraform -chdir=infra/${{ matrix.stack }} validate
+
+  tflint:
+    name: tflint (${{ matrix.stack }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        stack: [guardrails, baseline]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: terraform-linters/setup-tflint@6ffdbaa3be476b3431f7275c26966ef32ff60337 # v6.3.2
+        with:
+          tflint_version: v0.65.0
+      # Downloads the AWS ruleset pinned in .tflint.hcl. The token only raises the GitHub
+      # API rate limit for the download; the job's token is read-only.
+      - run: tflint --init --config="$GITHUB_WORKSPACE/.tflint.hcl"
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+      - run: tflint --chdir=infra/${{ matrix.stack }} --config="$GITHUB_WORKSPACE/.tflint.hcl" --format=compact
+
+  checkov:
+    name: checkov
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      # Version pinned in .github/ci/requirements.txt (Dependabot keeps it current).
+      - run: pip install --no-cache-dir -r .github/ci/requirements.txt
+      # Fails on ANY finding (checkov's default exit code). There is no --soft-fail and
+      # no baseline file: the only way to accept a finding is an inline
+      # `#checkov:skip=<ID>: <reason>` comment next to the resource, which is reviewed
+      # in the PR and visible to the next reader.
+      - run: checkov -d infra --framework terraform --compact --quiet
+
+  gitleaks:
+    name: gitleaks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      GITLEAKS_VERSION: 8.30.1
+      # SHA-256 of gitleaks_8.30.1_linux_x64.tar.gz, from the project's checksums file.
+      GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # Full history: a secret committed and then deleted is still in the git log.
+          fetch-depth: 0
+      # Installed from the release tarball and verified against a pinned hash, instead of
+      # a third-party action: fewer moving parts, and no token or license needed.
+      - name: Install gitleaks
+        run: |
+          curl -sSfL -o gitleaks.tar.gz "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "${GITLEAKS_SHA256}  gitleaks.tar.gz" | sha256sum --check --strict
+          mkdir "$RUNNER_TEMP/gitleaks-bin"
+          tar -xzf gitleaks.tar.gz -C "$RUNNER_TEMP/gitleaks-bin" gitleaks
+          rm gitleaks.tar.gz
+          echo "$RUNNER_TEMP/gitleaks-bin" >> "$GITHUB_PATH"
+      # --redact keeps any secret it finds out of the (public) log. Exit code 1 on a leak.
+      - run: gitleaks git --redact --verbose --no-banner
+
+  test:
+    name: test (${{ matrix.stack }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        stack: [guardrails, baseline]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: 1.17.1
+          terraform_wrapper: false
+      - run: terraform -chdir=infra/${{ matrix.stack }} init -backend=false -input=false -lockfile=readonly
+      # Runs infra/<stack>/tests/*.tftest.hcl against a mock AWS provider: no calls to AWS.
+      - run: terraform -chdir=infra/${{ matrix.stack }} test

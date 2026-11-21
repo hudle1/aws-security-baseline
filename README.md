@@ -1,5 +1,8 @@
 # aws-security-baseline
 
+[![CI](https://github.com/hudle1/aws-security-baseline/actions/workflows/ci.yml/badge.svg)](https://github.com/hudle1/aws-security-baseline/actions/workflows/ci.yml)
+![Status: in development](https://img.shields.io/badge/status-in%20development-orange)
+
 Terraform security baseline for a personal AWS account: CloudTrail, GuardDuty, Security Hub (FSBP + CIS v5.0.0), AWS Config, IAM Access Analyzer and free guardrails, with one-command teardown.
 
 **Status:** 🚧 Phase 2 of 7: design docs. Not deployable yet.

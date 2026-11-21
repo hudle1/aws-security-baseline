@@ -280,3 +280,70 @@ while trying to create a test resource shared with the AWS documentation example
 **Cause:** these services check that the account named as a principal exists. A documentation placeholder is not a real account.
 
 **Fix:** use a principal that is valid without being a real second account. The test that worked used an IAM role whose trust policy names `"AWS": "*"` limited by a random `sts:ExternalId` condition, with **no permission policies**, deleted about 90 seconds later (Access Analyzer raised the finding in 74 seconds). Role name `aa-alert-test-delete-me`. After the role was deleted, Access Analyzer set the finding to `RESOLVED` on its own (this overrides a manual archive), so no manual clean-up of the finding is needed. Or use a real account ID you own.
+
+## 15. CI: `terraform validate` / `test` fail with "cached package ... does not match any of the checksums"
+
+**Symptom** (GitHub Actions, Linux runner; the same code passes on the Windows laptop)
+
+```text
+Error: missing or corrupted provider plugins:
+  - registry.terraform.io/hashicorp/aws: the cached package for registry.terraform.io/hashicorp/aws 6.73.0 (in .terraform/providers) does not match any of the checksums recorded in the dependency lock file
+```
+
+**Cause:** `.terraform.lock.hcl` was created by `terraform init` on Windows, so it recorded only the Windows (`windows_amd64`) package hash. The Linux runner downloads a different package for the same version and finds no matching hash. The CI uses `-lockfile=readonly`, so Terraform refuses to add one silently (which is the point of that flag).
+
+**Fix:** add the hashes for every platform that runs this code, in each stack, and commit the lock files:
+
+```powershell
+terraform -chdir=infra/guardrails providers lock -platform=windows_amd64 -platform=linux_amd64 -platform=darwin_amd64 -platform=darwin_arm64
+terraform -chdir=infra/baseline providers lock -platform=windows_amd64 -platform=linux_amd64 -platform=darwin_amd64 -platform=darwin_arm64
+```
+
+The diff only adds `h1:`/`zh:` lines; provider versions do not change.
+
+## 16. `terraform test`: "Invalid testing directory" when tests live in the repo-root `tests/`
+
+**Symptom**
+
+```text
+Error: Invalid testing directory
+The testing directory must be a relative path pointing to a directory local to the configuration directory.
+```
+
+after `terraform -chdir=infra/baseline test -test-directory=../../tests/baseline`.
+
+**Cause:** Terraform only runs tests found inside the module's own directory.
+
+**Fix:** keep tests in `infra/<stack>/tests/` (Terraform's default location) and run `terraform -chdir=infra/<stack> test`. The repo-level `tests/` folder from the original layout is not used.
+
+## 17. `terraform test` with a mock provider: plan fails before any assert runs
+
+Four separate errors, all because a mock invents a random value for every attribute the real provider would compute, and the provider schema still validates those values.
+
+| Symptom | Cause | Fix |
+| --- | --- | --- |
+| `"policy" contains an invalid JSON: invalid character 'd' looking for beginning of value` (on a KMS key, bucket policy, SNS policy) | The mocked `aws_iam_policy_document.json` is a random string, and `policy` arguments must be JSON | In `mock_provider "aws"` add `mock_data "aws_iam_policy_document"` with `defaults = { json = "{...valid JSON...}" }` |
+| `"standards_arn" (arn:aws:securityhub:3ni6ms9r::...) is an invalid ARN: invalid region value` | The mocked `aws_region` returns a random region and ARNs are built from it | `mock_data "aws_region"` with `name` and `region` set to `us-east-1` |
+| `"kms_key_id" (20m66g92) is an invalid ARN: arn: invalid prefix` (also `role_arn`, `topic_arn`) | After an `apply` run, mocked resources return random `arn` values that other resources validate | `mock_resource` defaults with a well-formed `arn` for `aws_kms_key`, `aws_sns_topic`, `aws_iam_service_linked_role` |
+| `Invalid import request: Cannot import resources from mock providers` | The guardrails stack has an `import` block for the budget, and a mock cannot import | `override_resource { target = aws_budgets_budget.monthly }` at the top of the test file |
+
+Also: asserting on an attribute that is only known after apply (the trail's `kms_key_id`) fails with "Unknown condition value" in a `plan` run. That one assertion uses `command = apply`, which is safe with a mock provider because the real AWS provider is never loaded.
+
+## 18. PowerShell 5.1: `--filters` JSON for `aws securityhub get-findings` fails with "Invalid JSON"
+
+Same cause and general fix as #13 (quotes stripped from inline JSON). Write the filter to a file and pass `--filters "file://<path>"`. Exact command: see [account-quick-wins.md](../components/account-quick-wins.md).
+
+## 19. Security alert emails "did not arrive" (they were grouped into an old Gmail conversation)
+
+**Symptom:** three alert tests (GuardDuty sample, CloudTrail stop/start, Config stop/start) looked like they sent no email; a Gmail search for new alerts showed only the Access Analyzer one.
+
+**Cause:** nothing was lost. Every alert has the same subject, so Gmail files each new one into the existing conversation with the earlier alerts. The conversation list shows only the latest message's time and preview, and a date-restricted search used the wrong date. Checked first on the AWS side: all six rules matched once with no failed invocations, SNS published and delivered the same number of messages with none failed, and the subscription was confirmed.
+
+**Fix / how to verify:** expand the conversation and read the individual messages, or search `"SECURITY ALERT"` with a date range wide enough to include the test (Gmail's `after:` uses the account's time zone). To prove the AWS side without trusting the inbox:
+
+```powershell
+aws cloudwatch get-metric-statistics --region us-east-1 --profile sandbox-admin --namespace AWS/SNS --metric-name NumberOfNotificationsDelivered --dimensions Name=TopicName,Value=baseline-security-alerts --start-time <UTC_START> --end-time <UTC_END> --period 300 --statistics Sum
+```
+
+(`NumberOfNotificationsFailed` should have no datapoints.) The real fix is a distinct subject per rule: v1.1 item in [control-tiers.md](../control-tiers.md). Until then, a real incident email can be missed if the conversation is muted, filtered or not opened.
+

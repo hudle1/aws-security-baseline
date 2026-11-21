@@ -89,7 +89,7 @@ A phase is not done until:
   - `docs/compliance/` (Prowler CIS report, account ID redacted)
 - Any CIS control that fails by design is listed in `docs/control-tiers.md` and `docs/compliance-mapping.md` with its tier and reason.
 - `infra/{guardrails,baseline}/`
-- `tests/` (terraform test)
+- `infra/<stack>/tests/*.tftest.hcl` (terraform test; Terraform only runs tests inside the module, see troubleshooting #16). No repo-root `tests/`.
 - `scripts/verify.ps1` (post-deploy API checks = test evidence + demo)
 - `.github/workflows/`
 - `make.ps1` or `Makefile`
