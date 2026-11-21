@@ -1,139 +1,74 @@
 # Design Decisions
 
-(Written by David.)
+**Written by David.**
 
-## Questions for David
+These are my answers to seven interview-style questions about the choices in this project. I gave them in a chat on 2026-11-20; the words and the reasoning are mine. They were assembled with light edits only (formatting of commands and code terms). Each answer links to the decision records and evidence behind it. The full list of decisions, with options and consequences, is in [decisions/](decisions/README.md).
 
-(Claude adds design-choice questions and David's chosen answers here.)
+## 1. Two stacks: guardrails and baseline
 
-### Phase 2 design choices (decided 2026-11-15)
+**Question:** Why did you split the project into two Terraform stacks, `guardrails` and `baseline`, instead of one?
 
-**Q-a. Where does AWS Config deliver snapshots?**
-Options: (1) share the CloudTrail log bucket with a separate prefix; (2) its own bucket.
-Choice: **1, shared log-archive bucket.**
-David's reasoning: one hardened log-archive bucket, with each service limited to its own prefix using `aws:SourceAccount` / `aws:SourceArn` conditions. Mirrors a real log-archive account and keeps teardown simple.
+Guardrails (budget alarm, S3 Block Public Access, password policy) are free and should always be on, while the baseline (CloudTrail, GuardDuty, Security Hub, Config) costs money and gets torn down when I'm not demoing. I split them by lifecycle and cost so that tearing down to save money never weakens the account's protections. With one stack, a single destroy would also delete the budget alarm, turn off S3 Block Public Access, remove the password policy, and even delete my original budget, since it's imported into Terraform. The split limits the blast radius of Terraform operations, but it isn't a security boundary, because both stacks share the same account and credentials.
 
-**Q-b. One KMS key or separate keys?**
-Options: (1) one customer-managed key for CloudTrail + Config (~$1/mo); (2) separate keys (~$2/mo).
-Choice: **2, separate keys.**
-David's reasoning: about $1/month more, but a smaller blast radius if one key policy is wrong, and each policy is simpler to read.
-Implementation note: both services write to the shared bucket; CloudTrail encrypts with the CloudTrail key (set on the trail), Config with the Config key (`s3_kms_key_arn` on the delivery channel). The bucket's default encryption key only applies to writers that don't specify one.
+*Related: [ADR-018](decisions/018-free-quick-wins-and-test-finding.md) (guardrails quick wins), [ADR-008](decisions/008-budget-keeps-credit-refund-filter.md) (the imported budget), [teardown.md](operations/teardown.md)*
 
-**Q-c. S3 Object Lock on the log bucket?**
-Options: compliance mode; governance mode; none for v1.
-Choice: **none for v1.**
-David's reasoning: a compromised admin can bypass governance mode, and compliance mode breaks one-command teardown. v1 detects tampering with CloudTrail log file validation + bucket versioning. Prevention (compliance-mode Object Lock in a separate log-archive account) goes on the roadmap.
+## 2. One shared log bucket, separate KMS keys
 
-**Q-d. CloudTrail data events (S3/Lambda)?**
-Options: on; off.
-Choice: **off.**
-David's reasoning: management events cover the attacks in the threat model. GuardDuty S3 Protection must be enabled in Phase 5 so S3 detection doesn't depend on trail data events.
+**Question:** The CloudTrail and Config logs go into one shared bucket, but each service has its own KMS key. Why share the bucket but separate the keys?
 
-**Q-e. CloudTrail to CloudWatch Logs + CIS metric alarms?**
-Options: v1; Tier 1 later.
-Choice: **Tier 1 later.**
-David's reasoning: with the CIS standard enabled, the CIS alarm controls may fail. Each is listed in `control-tiers.md` as Tier 1 with the reason (cost, and GuardDuty already alerts on root credential use and CloudTrail being stopped). Phase 5: check whether the current Security Hub CIS version still includes those controls.
-**Phase 5 answer (verified 2026-11-19):** CIS v5.0.0 has 40 controls in Security Hub and **none are CloudWatch metric-filter or alarm controls**, so decision e causes no CIS failure. The Phase 2 premise ("CIS alarm controls may fail") applied to older CIS versions.
-**Correction (2026-11-20, Prowler):** the statement above holds for Security Hub's CIS v5.0.0 list only. Prowler, which implements the benchmark text, reports CIS 4.1 to 4.15 (CloudWatch metric filters and alarms) as 15 failures caused by decision e. See docs/compliance/prowler-cis-v5.0-summary.md and docs/control-tiers.md.
+I share one bucket because it acts like a single hardened log archive: one place to secure, one set of protections (versioning, Block Public Access, TLS-only, encryption), and one teardown. Each service can only write to its own folder, locked to my account with source conditions, which mirrors how a real log-archive account works. I separated the keys because it costs only about a dollar a month more and is the more secure option: if one key policy is ever wrong, it doesn't expose the other service's logs, and each policy is simpler to read and review. In short, I consolidate where it reduces what I have to harden, and separate where it limits blast radius.
 
-**Q-f. Detection regions (OPEN, decide in Phase 5).**
-CloudTrail is multi-region, but GuardDuty, Config and Security Hub are regional and v1 deploys them in us-east-1 only. An attacker acting in another enabled region is logged but not detected (threat model #10).
-Options: (1) GuardDuty in all 17 enabled regions (near-$0 when idle, more resources/teardown); (2) us-east-1 only, documented residual risk; (3) opt out of unused opt-in regions (the 17 default regions can't be disabled without Organizations SCPs).
-Choice: **2, us-east-1 only for v1. Decided by David 2026-11-18.**
-Compensating controls: multi-region CloudTrail (evidence in every region) and the gross-spend budget alarm (catches cost spikes such as crypto-mining in any region).
-Roadmap: first v1.1 item is "GuardDuty in all enabled regions with cross-region alert forwarding to us-east-1". Production / Tier 2 fix: an SCP denying unused regions. Threat model #10 residual risk updated to match.
+*Related: [ADR-001](decisions/001-config-delivers-to-shared-log-bucket.md), [ADR-002](decisions/002-separate-kms-keys-per-service.md)*
 
-**Scope change: CIS in scope.**
-Security Hub enables both AWS FSBP and the CIS AWS Foundations Benchmark. Latest supported version confirmed as **v5.0.0** via `aws securityhub describe-standards` (2026-11-15); which controls v5.0.0 contains is checked in Phase 5. Default standards stay off. Prowler gives an independent CIS report in Phase 7.
+## 3. No Object Lock in v1, and what production would do
 
-### Phase 4 design choices (2026-11-18)
+**Question:** The log bucket has versioning and CloudTrail log file validation, but no S3 Object Lock, and a `terraform destroy` even erases the logs. Why did you accept that, and what would you do differently in production?
 
-**Q-i. Should the CloudTrail bucket have S3 server access logging (CloudTrail.7)?**
-Finding (**corrected 2026-11-19**): an earlier version of this note said CloudTrail.7 was in neither enabled standard. That was wrong. With CIS v5.0.0 enabled, Security Hub reports `CloudTrail.7` as a CIS v5.0.0 control (3.4, "S3 access logging on the CloudTrail bucket") and it **fails**. The Tier 1 exception below still stands; only the premise changed.
-Options: (1) Tier 1 exception, no second bucket; (2) in scope: a second hardened access-log bucket plus logging on the log bucket.
-Choice: **1, Tier 1 exception.**
-Reasoning: a second bucket would itself need BPA, versioning and a policy, and Checkov would then flag that bucket for having no logging, which is a loop. Recorded in `control-tiers.md`; `CKV_AWS_18` is skipped in code with this reason.
-Related finding (**corrected 2026-11-19**): CloudTrail.5 (CloudWatch Logs) is an FSBP control only, not CIS v5.0.0 3.4 as this note said. It still fails by design because of decision e.
+I chose not to use S3 Object Lock in v1 because in a single sandbox account the real threat is a compromised admin, and governance mode doesn't stop an admin, while compliance mode would make the logs undeletable until retention expires and break my one-command teardown. So v1 focuses on detection instead of prevention: versioning keeps prior copies, CloudTrail log file validation proves which logs existed and whether they changed (888 of 888 files validated, though only when someone runs it), and real-time alerts fire on changes to the bucket policy or versioning, which I proved live. The `force_destroy` setting that lets `terraform destroy` erase the logs is a deliberate sandbox-only trade-off. In production I'd send logs to a separate log-archive account through an organization trail, enable compliance-mode Object Lock with a defined retention period, remove `force_destroy`, and use SCPs to deny deleting logs or stopping the trail, so even an admin in the workload account couldn't erase the evidence.
 
-**Q-j. Log retention.**
-Options: 90 days (cheaper, shorter evidence window); 365 days (covers a typical SOC 2 audit window and slow investigations).
-Choice: **365 days for current objects, 30 days for noncurrent versions** (variables `log_retention_days`, `noncurrent_retention_days`; the first has a 90-day minimum). **Confirmed by David 2026-11-18.**
-David's reasoning: covers a typical audit window and slow investigations, for pennies. Digest files expire on the same schedule, so `validate-logs` only works inside that window.
+*Related: [ADR-003](decisions/003-no-object-lock-in-v1.md), [ADR-012](decisions/012-real-time-alerts-in-v1.md), [validate-logs evidence](evidence/validate-logs-output.txt)*
 
-**Q-k. Who may decrypt CloudTrail logs?**
-Options: (1) AWS's documented pattern: any principal in this account, limited to CloudTrail-encrypted data by encryption context; (2) a named log-reader role only.
-Choice: **1, AWS's documented account-wide pattern. Confirmed by David 2026-11-18.**
-David's reasoning: S3 read access is still required as a second lock, because reading a log needs both S3 permissions and `kms:Decrypt`. Trade-off: the key statement grants decrypt without needing an IAM allow. Production improvement: a named log-reader role (threat model #3).
+## 4. Detection in us-east-1 only
 
-### Scope change: real-time alerts move into v1 (2026-11-18)
+**Question:** CloudTrail is multi-region, but GuardDuty, Config, Security Hub and the alerts run in us-east-1 only. What attack does that leave open, and how did you compensate?
 
-**Q-l. Should real-time alerts on tampering and high-severity findings be in v1?**
-Options: (1) Tier 1, later (as recorded in the Phase 2 threat model); (2) v1, built in Phase 5.
-Choice: **2, v1, built in Phase 5.**
-David's reasoning: it closes the "no real-time alert" gaps for log tampering and key deletion at about $0 cost.
-Scope (recorded in `CLAUDE.md`, nothing built yet):
-- One SNS topic with an email subscription (alert email from `baseline.tfvars`; David confirms the subscription).
-- EventBridge rules for: CloudTrail `StopLogging` / `DeleteTrail` / `UpdateTrail`; KMS `ScheduleKeyDeletion` / `DisableKey` / `PutKeyPolicy` on our keys; S3 `PutBucketPolicy` / `DeleteBucketPolicy` / `PutBucketVersioning` on the log bucket; Config `StopConfigurationRecorder` / `DeleteDeliveryChannel`; GuardDuty findings with severity >= 7; new active IAM Access Analyzer findings.
-Limits (to state in the Phase 5 component doc and README):
-- us-east-1 only: EventBridge rules work only in the region where they are created.
-- The API-call rules depend on the trail running: EventBridge receives CloudTrail-sourced events only while a trail with logging is on ([AWS docs](https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-service-event-cloudtrail.html)). That `StopLogging` itself is still delivered is David's understanding; verify by testing in Phase 5.
-- Detect-only: a compromised admin can delete the rules or the topic. Prevention still needs SCPs (Tier 2).
-Cost note: "about $0" holds for EventBridge and SNS email at this volume. If the SNS topic needs a customer-managed KMS key, that adds about $1/month (open item for Phase 5).
-Effect on other docs: `control-tiers.md` alert rows now say "Phase 5, v1". Threat model rows #1, #4, #7, #8, #9 and #21 still say "Tier 1: EventBridge rule" in their residual-risk column. **David decided (2026-11-18): update them when Phase 5 ships, not now.** This is in the Phase 5 definition of done in `CLAUDE.md`.
-SNS topic encryption: decided in Phase 5. David's current leaning is a customer-managed key (most secure, about $1/month) if EventBridge cannot publish to a topic encrypted with the AWS-managed `aws/sns` key (to verify first).
-The Phase 4 stack stays deployed through Phase 5 (it is the base Phase 5 builds on). Teardown happens in Phase 7.
+Running detection only in us-east-1 leaves an attacker with stolen credentials free to use a region nobody watches, for example launching crypto-mining instances in eu-west-1. That's a common real-world pattern, and in my setup it wouldn't raise a GuardDuty finding or a real-time alert. I compensated in two ways. First, CloudTrail is multi-region, so the activity is still recorded as evidence in every region. Second, my budget alarm tracks gross spend, with credits and refunds excluded, so a cost spike from mining in any region would trigger an alert, within hours to a day rather than minutes. I also deleted the default VPC in all 17 regions, which removes ready-made networking an attacker could use, although they could still create their own, and that would also be logged. The first v1.1 item is GuardDuty in every enabled region with findings forwarded to my us-east-1 alerts, and in production I'd use an SCP that denies unused regions entirely, which prevents the attack instead of just detecting it.
 
-### Phase 5 design choices (2026-11-18)
+*Related: [ADR-006](decisions/006-detection-in-us-east-1-only.md), [ADR-020](decisions/020-delete-default-vpcs.md), [default-VPC evidence](evidence/default-vpc-deletion.md)*
 
-**Q-m. Config recording frequency.**
-Options: (1) continuous ($0.003 per configuration item, billed only when a resource changes); (2) daily ($0.012 per item, one item per resource per day).
-Choice: **1, continuous.** Decided by David 2026-11-18. This replaces "daily" in the `CLAUDE.md` v1 scope, `architecture.md`, `control-tiers.md` and `compliance-mapping.md`.
-David's reasoning: continuous bills only on change, so in a low-change sandbox it is likely cheaper than daily, and it records a change within minutes instead of up to 24 hours (supports threat model #7).
+## 5. Alert rules versus GuardDuty
 
-**Q-n. Config IAM role.**
-Options: (1) AWS service-linked role `AWSServiceRoleForConfig`; (2) custom role.
-Choice: **1, service-linked role.** Nothing for us to over-broaden. Implementation notes: Terraform creates the role explicitly (`aws_iam_service_linked_role`) because a fresh account does not have it until Config is first enabled. The role has **no KMS permissions**, so with an SLR Config delivers to S3 as the `config.amazonaws.com` service principal; the Config key policy therefore grants that principal (with `aws:SourceAccount` and `aws:SourceArn`), not the role (see troubleshooting #10).
+**Question:** You tested the CloudTrail `StopLogging` alert live, and GuardDuty also reacted to the same action. What did comparing the two teach you about relying on each?
 
-**Q-o. GuardDuty protection plans.**
-Options: (1) S3 Protection only, every other paid plan explicitly `DISABLED`; (2) add Lambda; (3) everything on.
-Choice: **1.** `guardduty-triage` (P2, the next sprint project) will deploy a Lambda: **enable Lambda Protection when P2's Lambda is deployed.**
+The EventBridge rule matches the exact StopLogging API call, so it's deterministic and fast: the alert email arrived within the same minute. GuardDuty reacted too, but about 22 minutes later, and it rated the finding Low (severity 2), which as far as I know is how GuardDuty classifies that finding type by design rather than a judgment about my specific call. Since my GuardDuty alert rule only forwards severity 7 and above, that finding would never have emailed me. The lesson is defense in depth: I use exact-match rules for known critical tampering actions, where I want a guaranteed, immediate alert, and GuardDuty for behavior I can't predict in advance. I also learned that a severity threshold is a trade-off: it cuts noise but can hide low-severity events that matter in context, which is exactly why I built specific tampering rules instead of relying only on GuardDuty's high-severity findings.
 
-**Q-p. SNS topic encryption.**
-Finding (verified 2026-11-18 against the AWS Knowledge Center article "SNS not getting EventBridge notification" and the SNS key-management docs): EventBridge cannot publish to a topic encrypted with the AWS-managed `aws/sns` key, because that key's policy cannot be edited to grant EventBridge access. The key policy for a customer-managed key also must not use `aws:SourceAccount` / `aws:SourceArn` conditions for EventBridge delivery.
-Options: (1) customer-managed key (about $1/month); (2) `aws/sns` (does not work); (3) unencrypted with a justified skip.
-Choice: **1, customer-managed key.** Scoping to our rules is done in the topic policy (`aws:SourceArn` = our rule ARNs) instead.
+*Related: [ADR-012](decisions/012-real-time-alerts-in-v1.md), [alerts.md](components/alerts.md), [GuardDuty finding evidence](evidence/guardduty-cloudtrail-logging-disabled.md)*
 
-**Q-q. How the KMS tamper rule matches keys.**
-Options: (1) our three keys by ID and ARN; (2) any KMS key in the account; (3) key ID only.
-Choice: **2, any KMS key in the account.** Never stale, and a new key is covered automatically. Trade-off: also alerts on harmless key work in the sandbox.
+## 6. Accepted failures versus fixed ones
 
-**Q-r. What to do with the free failing controls and the test finding (decided 2026-11-20).**
-- **Quick wins:** fix `EC2.7` (EBS default encryption), `Account.1` (security contact), `IAM.18` (support role) and `SSM.7` (block public SSM document sharing) in the guardrails stack, as a small follow-up PR after Phase 5 merges. Account contact details live in `guardrails.tfvars` (gitignored), placeholders in the example file.
-- **Test finding:** the real GuardDuty `Stealth:IAMUser/CloudTrailLoggingDisabled` finding from the StopLogging test stays unarchived until the Phase 7 screenshots, then is archived.
-- **`docs/operations/deploy.md`:** written in Phase 7.
+**Question:** Your scorecard still has failing controls (for example IAM.6, CloudTrail.7, S3.22 and S3.23). Why accept those instead of fixing them, and how did you decide which failures to fix?
 
-### Open question (added 2026-11-20, Phase 7a)
+I treated the score as a tool, not the goal. Every failing control got the same question: what's the real risk, what does fixing it cost, and is there a compensating control? Anything free and high-value I fixed right away. That's why I added EBS default encryption, the security contact, the support role and the SSM sharing block (four failures turned into passes), and deleted the default VPC in all 17 regions. The ones I accepted each have a documented tier, reason, compensating control and target date. IAM.6 is hardware MFA for root: root already has virtual MFA, no access keys, and is never used day to day, so a FIDO key is a v1.1 item. CloudTrail.7 is access logging on the log bucket: it would add a second bucket to harden, and against a compromised admin it adds little, since log file validation already detects tampering. S3.22 and S3.23 are object-level logging, which I turned off for cost and noise, with GuardDuty S3 Protection analyzing that activity for anomalies instead. In production, with real data and more users, I'd revisit each of these, but an auditor cares more that every gap is known, justified and time-bound than about a perfect score.
 
-**Q-s. Fix IAM.6 (hardware MFA on the root user) or keep it as an accepted risk?**
-Facts (checked live): root MFA is on, it is a virtual authenticator-app device, there are no root access keys, and Security Hub rates IAM.6 CRITICAL. The Prowler CIS run (docs/compliance/) reports the same control.
-Options: (1) **keep the accepted risk** (Tier 1, current): costs nothing; compensating controls are root MFA, no root keys, SSO for daily work and CloudTrail; the scorecard keeps one CRITICAL failure that the README must explain. (2) **register a FIDO2 hardware security key as root MFA** (one-time cost for the key, roughly $25 to $55; buying two and storing one separately is the usual advice): IAM.6 should then pass; the cost is the key, the effort, and a recovery plan if it is lost. Whether Security Hub also requires the virtual device to be removed is unverified. (3) **add a root `ConsoleLogin` alert** (EventBridge rule, v1.1) as an extra compensating control with either option: free, and detects root use in about a minute like the other alert rules.
-Choice: **pending David.**
+*Related: [control-tiers.md](control-tiers.md), [ADR-009](decisions/009-no-s3-access-logging-on-cloudtrail-bucket.md), [ADR-004](decisions/004-cloudtrail-data-events-off.md), [ADR-019](decisions/019-accept-virtual-root-mfa-for-v1.md), [ADR-020](decisions/020-delete-default-vpcs.md)*
 
-**Q-t. What to do with the default-VPC findings Prowler found (CIS 3.7 flow logs, 5.2 default NACL, 5.5 default security group)?**
-Facts: the account's default VPC is unused (0 network interfaces). Security Hub shows these three as WARNING (not evaluated); Prowler with `--scan-unused-services` shows FAIL.
-Options: (1) **accept** as Tier 1 (current proposal in control-tiers.md): free, nothing runs there; the scorecard keeps three visible failures to explain. (2) **delete the default VPC** in us-east-1: free, removes the three findings and the permissive defaults at the root; cost is that a later EC2 or Lambda-in-VPC experiment must create a VPC first, and whether Security Hub and Prowler then report these as passed or as "no resource" is unverified. (3) **enable flow logs** on the default VPC and restrict the default NACL and security group: needs a log destination, so it adds cost and Terraform code for a VPC nothing uses.
-Choice: **pending David.**
+## 7. Building with AI: what the guardrails are for
 
-### Phase 3 design choices (2026-11-16)
+**Question:** You built this with Claude Code, and the README says you set guardrails on it. Looking back, which guardrail mattered most, and what is one thing you would not let the AI do on its own?
 
-**Q-g. Should the IAM password policy force password expiry (`max_password_age`)?**
-Options: (1) set 90 days or less (satisfies Checkov `CKV_AWS_9`); (2) leave unset (never expires).
-Choice: **2, unset.**
-David's reasoning (from the code comment): NIST SP 800-63B advises against forced periodic rotation because it pushes users toward weak, predictable passwords; CIS v5.0.0 doesn't require it; Security Hub IAM.7 passes without it. `CKV_AWS_9` is skipped in `main.tf` with this justification.
+The guardrail that mattered most was that Claude Code couldn't change its own permissions. I denied it edit access to its settings file, and later closed a gap where it could have edited the file through shell commands, so every rule loosening had to come from me. On top of that, anything that changed AWS or GitHub needed my approval: `terraform apply` and `destroy`, `git push` and GitHub API writes. Branch protection backed that up: when one of its commits landed on main by mistake, GitHub rejected the push, and it recovered by moving the commit to a branch. The one thing I wouldn't let the AI do on its own is approve changes to production, meaning applying infrastructure or merging to main. It was careful (it even refused to treat a verification checklist as approval to apply), but it also overclaimed several times, writing that things were proven when they weren't. Independent checks caught those: a second reviewer, live tests, and Prowler as a second scanner. So my rule is that the AI builds and explains, while a human approves, and anything it claims gets verified against evidence.
 
-**Q-h. Should the imported budget keep its "exclude credits and refunds" filter?**
-The live budget `monthly-10-usd` excludes `Credit` and `Refund` records, so it measures gross usage. The Terraform draft had no matching `filter_expression`, so the first plan removed it.
-Options: (1) add the matching `filter_expression` so the import changes only the notifications (alerts track gross spend); (2) accept net-of-credits (simpler code; alerts fire later than real usage when credits exist).
-Choice: **1, keep the filter.**
-David's reasoning: gross spend, so credits can't mask a compromise-driven cost spike.
-Implementation notes: the provider requires `metrics` whenever `filter_expression` is set, so `metrics = ["UnblendedCost"]` (the live value) is also in code. `billing_view_arn` is set to the account's `primary` billing view (built from `var.account_id`) so the import doesn't change it. AWS's API reference doesn't say what omitting it does, so matching it is the safe choice, and it also keeps `plan` clean after apply.
+*Related: [README section 11](../README.md#11-how-i-built-this-with-ai), [CLAUDE.md](../CLAUDE.md)*
+
+---
+
+## Evidence notes (added by Claude; not part of David's answers)
+
+Checked against the repo and the live account on 2026-11-20, so the answers above can be quoted safely.
+
+- **Two stacks (1):** matches `make.ps1`, where `destroy` removes the baseline only and `destroy-all` (which asks you to type `destroy-all`) also removes the guardrails and the imported budget.
+- **Alerts on the bucket (3):** the `logbucket-tamper` alert was proven live for bucket policy changes (real `PutBucketPolicy` calls). The same rule also lists `PutBucketVersioning`, but that call was never triggered in a test, so for versioning the rule is deployed and enabled, not live-proven.
+- **Budget alarm timing (4):** "within hours to a day" is a reasonable expectation from how AWS cost data arrives; the alarm has not been triggered, so the latency is not measured. The default VPCs were deleted in all 17 regions and none remain (evidence file linked above).
+- **GuardDuty severity (5):** one finding was observed, severity 2.0 (Low), about 22 minutes after the call. That GuardDuty always rates this finding type Low is not verified, so the hedge in the answer ("as far as I know") should stay.
+- **Accepted failures (6):** the four quick-win controls (EC2.7, Account.1, IAM.18, SSM.7) were re-checked in Security Hub and show PASSED. "Root is never used day to day": Prowler's check (CIS 1.6) confirms no root use in the last day only; CloudTrail records every root sign-in. `CloudTrail.7` is CIS v5.0.0 3.4 only, severity LOW (verified live), and Prowler also fails it.
+- **AI guardrails (7):** the 2026-11-18 sequence is confirmed in git: the commit (`369d169`) was made on local `main` at 00:39:25 MT, about 15 seconds after PR #4 merged, then moved to branch `docs/phase5-done-criteria`, which became PR #5 (merged 07:41:57 UTC), with no force push. The push rejection by branch protection leaves no trace in git history, so that detail is David's account. The settings-file deny rules were not inspected by Claude (a read of that file was denied during this session, consistent with the rule).

@@ -18,6 +18,15 @@ Every real problem hit while building this repo, with symptom, cause and fix. Ne
 12. [Security Hub: standards subscription times out while `PENDING`, resource left tainted](#12-security-hub-standards-subscription-times-out-while-pending-resource-left-tainted)
 13. [PowerShell 5.1: JSON passed to the AWS CLI loses its quotes](#13-powershell-51-json-passed-to-the-aws-cli-loses-its-quotes)
 14. [SQS, SNS and IAM reject a placeholder account ID in a policy](#14-sqs-sns-and-iam-reject-a-placeholder-account-id-in-a-policy)
+15. [CI: `terraform validate` / `test` fail with "cached package ... does not match any of the checksums"](#15-ci-terraform-validate--test-fail-with-cached-package--does-not-match-any-of-the-checksums)
+16. [`terraform test`: "Invalid testing directory" when tests live in the repo-root `tests/`](#16-terraform-test-invalid-testing-directory-when-tests-live-in-the-repo-root-tests)
+17. [`terraform test` with a mock provider: plan fails before any assert runs](#17-terraform-test-with-a-mock-provider-plan-fails-before-any-assert-runs)
+18. [PowerShell 5.1: `--filters` JSON for `aws securityhub get-findings` fails with "Invalid JSON"](#18-powershell-51---filters-json-for-aws-securityhub-get-findings-fails-with-invalid-json)
+19. [Security alert emails "did not arrive" (they were grouped into an old Gmail conversation)](#19-security-alert-emails-did-not-arrive-they-were-grouped-into-an-old-gmail-conversation)
+20. [`verify.ps1`: KMS rotation checks fail with an empty error message](#20-verifyps1-kms-rotation-checks-fail-with-an-empty-error-message)
+21. [`pipx install prowler` fails on Windows: "No such file or directory" under `msgraph\generated\...`](#21-pipx-install-prowler-fails-on-windows-no-such-file-or-directory-under-msgraphgenerated)
+22. [`make.ps1 lint` / `checkov` fails on Windows: "File association not found for extension .py"](#22-makeps1-lint--checkov-fails-on-windows-file-association-not-found-for-extension-py)
+23. [`delete-default-vpcs.ps1`: every region reports ERROR on the first dry-run](#23-delete-default-vpcsps1-every-region-reports-error-on-the-first-dry-run)
 
 ## 1. SSO login fails: profile not found
 
@@ -359,7 +368,7 @@ aws cloudwatch get-metric-statistics --region us-east-1 --profile sandbox-admin 
 
 ## 21. `pipx install prowler` fails on Windows: "No such file or directory" under `msgraph\generated\...`
 
-**Status: open (2026-11-20). Prowler is not installed yet.**
+**Status: resolved (2026-11-20).** Windows long paths were enabled and `pipx install prowler` then succeeded (Prowler 5.51.0). The install took about 34 minutes, mostly unpacking `msgraph`'s thousands of small files; it looked hung but was not (the pip process was using CPU and the venv was filling).
 
 **Symptom**
 
@@ -371,5 +380,39 @@ ERROR: Could not install packages due to an OSError: [Errno 2] No such file or d
 
 **Cause:** Prowler depends on `msgraph`, whose files have very long names. The full path exceeds Windows' 260-character limit, and Windows long-path support is off (`LongPathsEnabled = 0`). Moving the pipx home to `C:\pipx` did not help: even `C:\pv` would give a path of about 272 characters.
 
-**Fix options:** (1) enable long paths once, from an elevated PowerShell, then open a new terminal and retry: `New-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" -Name LongPathsEnabled -Value 1 -PropertyType DWORD -Force` (a system-wide setting); or (2) run Prowler from its Docker image instead. Record the option used here when resolved.
+**Fix (used):** (1) enable long paths once, from an elevated PowerShell, then open a new terminal and retry: `New-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" -Name LongPathsEnabled -Value 1 -PropertyType DWORD -Force` (a system-wide setting); or (2) run Prowler from its Docker image instead (not needed). After enabling, open a new terminal and run `pipx install prowler` again; do not interrupt it.
 
+## 22. `make.ps1 lint` / `checkov` fails on Windows: "File association not found for extension .py"
+
+**Symptom**
+
+```text
+checkov.cmd : File association not found for extension .py
+```
+
+when running `checkov` in PowerShell (the same install works from Git Bash, and in CI).
+
+**Cause:** checkov installed with `pipx` is exposed on the PATH as `checkov.cmd`, a shim that starts the script through the Windows `.py` file association. This machine has no `.py` association, so the shim cannot start. The checkov in pipx's own environment is fine.
+
+**Fix:** run it with that environment's Python, which is what `make.ps1` does automatically:
+
+```powershell
+$venvs = pipx environment --value PIPX_LOCAL_VENVS
+& "$venvs\checkov\Scripts\python.exe" -m checkov.main -d infra --framework terraform --compact --quiet
+```
+
+Alternatively, associate `.py` files with Python (Settings, Default apps). CI is not affected (it installs checkov with `pip`).
+
+## 23. `delete-default-vpcs.ps1`: every region reports ERROR on the first dry-run
+
+**Symptom** (dry-run, nothing deleted)
+
+```text
+SKIP/ERROR us-east-1 : aws ec2 describe-nat-gateways failed in us-east-1 (exit 252)
+```
+
+for all 17 regions, so no VPC was marked safe.
+
+**Cause:** `aws ec2 describe-nat-gateways` takes `--filter` (singular), unlike the other EC2 describe commands, which take `--filters`. The CLI rejected the unknown flag with exit code 252 (usage error).
+
+**Fix:** use `--filter "Name=vpc-id,Values=<VPC_ID>"` for that one call. Worth noting: the script **failed closed**. An error in any check marks the region `ERROR` and never `SAFE TO DELETE`, so a broken check can only prevent a deletion, not cause one.

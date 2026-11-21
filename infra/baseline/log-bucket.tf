@@ -9,7 +9,7 @@ resource "random_id" "log_bucket_suffix" {
 }
 
 resource "aws_s3_bucket" "logs" {
-  #checkov:skip=CKV_AWS_18: Tier 1 exception (docs/control-tiers.md). Server access logging is not in CIS v5.0.0 or FSBP; it would need a second hardened bucket.
+  #checkov:skip=CKV_AWS_18: Tier 1 exception (docs/control-tiers.md, ADR-009). Server access logging is CIS v5.0.0 3.4 (Security Hub CloudTrail.7, which fails by design); it would need a second hardened bucket.
   #checkov:skip=CKV_AWS_144: Cross-region replication is a production improvement (separate log-archive account). Out of scope for a single-region sandbox.
   #checkov:skip=CKV2_AWS_62: Event notifications are Tier 1 (EventBridge alerting on tampering). Not in v1.
   bucket = "aws-security-baseline-logs-${random_id.log_bucket_suffix.hex}"
