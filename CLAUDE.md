@@ -46,7 +46,7 @@ State: local Terraform state (gitignored). Remote state is documented as a produ
 - Before any AWS write, show me the plan and wait.
 
 ## Docs ownership
-I write `docs/design-decisions.md` myself. You may add a "Questions for David" section only.
+I write `docs/design-decisions.md` myself, in my own words. Decisions are recorded as ADRs in `docs/decisions/` (you write and maintain those); present design choices as options and record my choice there.
 
 ## Documentation and handover
 Requirement: the repo must be handover-ready. If David left the company, someone must be able to understand and operate everything from `docs/` alone.

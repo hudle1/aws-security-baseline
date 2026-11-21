@@ -10,7 +10,7 @@ This folder is meant to be enough on its own: someone who has never seen this re
 2. [threat-model.md](threat-model.md): what we are defending against and what we accept.
 3. [control-tiers.md](control-tiers.md): what is in scope now vs later, and which CIS controls fail by design.
 4. [compliance-mapping.md](compliance-mapping.md): how each control maps to CIS and SOC 2.
-5. [design-decisions.md](design-decisions.md): why we chose what we chose.
+5. [design-decisions.md](design-decisions.md): why we chose what we chose, in David's words. The individual decisions are recorded as [ADRs](decisions/README.md).
 6. `components/`: one page per component (below). Read the ones you will touch.
 7. `operations/`: how to deploy, change, fix and tear down (below).
 
@@ -40,14 +40,16 @@ Each page covers: what it is, why we have it, configuration, defining file, how 
 | Doc | Purpose | Status |
 | --- | --- | --- |
 | [operations/ci.md](operations/ci.md) | What CI runs, why, how to read a failure, required checks | Written (Phase 6) |
-| `operations/deploy.md` | Prerequisites, access setup including SSO, step-by-step deploy | Planned (needed by Phase 7; started as each phase deploys) |
-| `operations/teardown.md` | `destroy` vs `destroy-all` and what each deletes | Planned (Phase 7) |
-| `operations/common-changes.md` | Safe recipes for routine changes | Planned (grows each phase) |
+| [operations/deploy.md](operations/deploy.md) | Prerequisites, access setup including SSO, step-by-step deploy | Written (Phase 7b; `make.ps1` apply targets pending first real run) |
+| [operations/teardown.md](operations/teardown.md) | `destroy` vs `destroy-all`, what can block, how to verify | Written (Phase 7b; destroy itself pending, 2026-11-28) |
+| [operations/common-changes.md](operations/common-changes.md) | Safe recipes for routine changes | Written (Phase 7b) |
 | [operations/troubleshooting.md](operations/troubleshooting.md) | Every real problem hit, with symptom, cause and fix | Started (Phase 3, grows each phase) |
-| `operations/runbook-compromised-credentials.md` | One-page incident runbook | Planned (Phase 7) |
+| [operations/runbook-compromised-credentials.md](operations/runbook-compromised-credentials.md) | One-page incident runbook | Written (Phase 7b; not yet rehearsed as a drill) |
 
 ## Other
 
+- [decisions/](decisions/README.md): 21 architecture decision records (context, options, decision, consequences, who recommended, who decided) (Phase 7b).
+- [images/README.md](images/README.md): screenshot list, where to save them and how to redact them.
 - [evidence/](evidence/README.md): redacted proof from the live account: `verify.ps1` output, CloudTrail log validation, teardown plan (Phase 7a).
 - [compliance/prowler-cis-v5.0-summary.md](compliance/prowler-cis-v5.0-summary.md): independent Prowler CIS v5.0 result, compared control by control with Security Hub, account ID redacted (Phase 7a).
 - `../CLAUDE.md`: project rules, including the documentation standard and each phase's definition of done.
