@@ -37,4 +37,16 @@ An error occurred (AccessDenied) when calling the PutBucketPolicy operation: Use
 
 ## CloudTrail record of the denied call
 
-**Pending.** The denied `PutBucketPolicy` (and the `CreateBucket` and `DeleteBucket` around it) had not appeared in `lookup-events` about 35 minutes after the test, which is longer than usual. To be re-checked and recorded here, or the delay recorded as a finding. Do not treat the CloudTrail side as verified until then.
+Confirmed (queried in `us-east-1`, the bucket's region). The calls appeared in `lookup-events` a short time after the test; an early check a minute or two after the test found nothing, which is ordinary CloudTrail delivery lag (an earlier draft of this page wrongly called it a 35-minute delay).
+
+| Time (UTC) | Event | Error code |
+| --- | --- | --- |
+| 2026-11-21T02:38:20Z | `CreateBucket` | none |
+| 2026-11-21T02:38:24Z | `PutBucketPolicy` (event ID `56ba3566-8270-4a9c-a6ce-03d30bd5739f`) | **`AccessDenied`** |
+| 2026-11-21T02:38:29Z | `DeleteBucket` | none |
+
+CloudTrail's own error message for the denied call (redacted) repeats the S3 text: `User: arn:aws:sts::<ACCOUNT_ID>:assumed-role/<SSO_ROLE>/<SSO_USER> is not authorized to perform: s3:PutBucketPolicy on resource: "arn:aws:s3:::<BUCKET>" because public policies are prevented by the BlockPublicPolicy setting in S3 Block Public Access.` So the attempt is on the audit trail, with the reason.
+
+```powershell
+aws cloudtrail lookup-events --profile sandbox-admin --region us-east-1 --lookup-attributes AttributeKey=EventName,AttributeValue=PutBucketPolicy --start-time <UTC_START>
+```
