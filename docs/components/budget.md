@@ -28,7 +28,7 @@ Threat addressed: stolen credentials or a mistake running up cost (crypto mining
 
 The pre-import budget had notifications at 100% actual, **85%** actual and 100% forecasted. Terraform replaces the 85% alert with the 80% one specified for this project.
 
-**Credits/refunds filter (decided, Q-h in [design-decisions.md](../design-decisions.md)):** the live budget excludes `Credit` and `Refund` records, so it measures gross usage. The first Terraform draft had no matching block, so the plan would have removed the filter. It is now in code, along with `metrics` and `billing_view_arn`, so the import changes only the notifications and default tags. If the live budget is ever edited in the console, `terraform plan` will show the drift.
+**Credits/refunds filter (decided, Q-h, [ADR-008](../decisions/008-budget-keeps-credit-refund-filter.md)):** the live budget excludes `Credit` and `Refund` records, so it measures gross usage. The first Terraform draft had no matching block, so the plan would have removed the filter. It is now in code, along with `metrics` and `billing_view_arn`, so the import changes only the notifications and default tags. If the live budget is ever edited in the console, `terraform plan` will show the drift.
 
 ## File that defines it
 

@@ -2,7 +2,7 @@
 
 Each decision that shaped this repo, in a short fixed format: context, options, decision, consequences, and who recommended and who decided. They were first recorded as questions in `design-decisions.md` and converted here on 2026-11-20 (Phase 7b). **Decided by** is always David; **Recommended by** says "Not recorded" where the history does not show a recommendation, rather than guessing.
 
-[design-decisions.md](../design-decisions.md) holds David's own explanation of the decisions in his words.
+[design-decisions.md](../design-decisions.md) holds David's own explanation of the decisions in his words. Other docs cite decisions by their original question letter (for example "decision Q-f"): the **Question** column in the table below maps each letter to its ADR.
 
 | ADR | Question | Decision | Date | Status |
 | --- | --- | --- | --- | --- |

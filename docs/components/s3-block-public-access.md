@@ -51,5 +51,5 @@ Free.
 ## Related controls
 
 - Security Hub: S3.1
-- CIS: "S3 Block Public Access enabled" (v5.0.0 section number to verify in Phase 5)
+- CIS v5.0.0 2.1.4 ("S3 Block Public Access enabled"). Security Hub reports it as `S3.1` (account level, requirement 2.1.4.1) and `S3.8` (bucket level, 2.1.4.2), both PASSED; Prowler passes 2.1.4 too (checked 2026-11-20, [prowler-cis-v5.0-summary.md](../compliance/prowler-cis-v5.0-summary.md))
 - SOC 2: CC6.1, CC6.6 (see [compliance-mapping.md](../compliance-mapping.md))

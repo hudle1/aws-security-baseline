@@ -103,7 +103,7 @@ A phase is not done until:
 - I write some of the code myself: leave `TODO(human)` markers, with hints, for the simpler resources (password policy, S3 Block Public Access, budget import, GuardDuty detector) and review my version. You write the complex pieces (KMS key policy, CloudTrail bucket policy, Config IAM role) and walk me through them line by line.
 - Before each `terraform apply`, walk me through the plan output: what's being created, and what each line means.
 - At the end of each phase, give me 5 interview-style questions on what we built. I answer, and you tell me what I got wrong.
-- When there's a design choice, give me the options and trade-offs and let me choose. Record my choice in "Questions for David" so I can write it up in `docs/design-decisions.md`.
+- When there's a design choice, give me the options and trade-offs and let me choose. Record my choice as an ADR in `docs/decisions/` (with who recommended and who decided). `docs/design-decisions.md` stays in my own words.
 
 ## Phase plan
 1. Pre-flight + scaffold

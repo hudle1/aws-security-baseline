@@ -194,7 +194,11 @@ I built this with Claude Code, and I treated it as a fast junior engineer workin
 - No long-lived AWS keys, no secrets in the repo, and CI has no AWS credentials. Scanning uses a separate read-only role.
 - It is pinned to my sandbox account; scripts refuse to run against any other account.
 - **Teaching mode:** it explains each change and the security reason before making it, and every design choice is presented as options, with my decision recorded as a [decision record](docs/decisions/README.md).
+- **It cannot change its own permissions.** Its settings file is protected by deny rules, including rules for shell commands that mention that file, so I closed the gap where it could have edited its own rules through the shell. Every loosening of a rule has to come from me.
+- **Branch protection backs the rules up.** On 2026-11-18 one of its commits landed on local `main` right after I merged a PR, and the push to `main` was rejected. It moved the commit to its own branch (`docs/phase5-done-criteria`, which became PR #5) without a force push.
 - The [design decisions](docs/design-decisions.md) file is in my own words, not generated.
+
+**The one thing I would not let it do on its own is approve a change to production**: applying infrastructure or merging to `main`. It was careful (it did not treat a verification checklist as approval to apply), but it also overclaimed several times, writing that something was proven when it was not. My rule is that **the AI builds and explains, a human approves, and anything it claims gets verified against evidence**: a second reviewer, live tests, and Prowler as a second scanner.
 
 **Why that matters:** AI-written infrastructure is only as trustworthy as the checks around it. This repo has formatting, lint, a security scanner, secret scanning and tests that I mutation-tested (weakening a control turns exactly one test red), and then a live-account check and an independent scanner. They caught real mistakes, including AI-written ones: a wrong claim that decision e caused no CIS failures (Prowler showed 15), a wrong delay I attributed to CloudTrail, a Security Hub "pass" that was empty. Each was corrected in the docs with a dated note instead of quietly rewritten.
 
