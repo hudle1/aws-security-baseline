@@ -54,7 +54,7 @@ Measured on 2026-11-19, a few minutes after both standards became `READY` (`secu
 **The 267 unevaluated controls are the real cost of recording only 7 Config resource types** ([components/config.md](components/config.md)). They are *not measured*, which is different from passed. Recording every type would evaluate them at a cost that grows with the resources in the account. Accepted for v1 (Tier 1); a decision to revisit if the scorecard is shown to others as a score.
 
 **Corrections to earlier drafts (verified live 2026-11-19):**
-- **Q-e answered:** CIS v5.0.0 has **40 controls in Security Hub and none are CloudWatch metric-filter or alarm controls**. Decision e (no CloudWatch Logs) therefore causes **no CIS failure**; the old "CloudWatch.1 to 14" row is removed. (`CloudTrail.5`, CloudWatch Logs on the trail, is an FSBP control only.)
+- **Q-e answered:** CIS v5.0.0 has **40 controls in Security Hub and none are CloudWatch metric-filter or alarm controls**. Decision e (no CloudWatch Logs) therefore causes **no failure in Security Hub's CIS list**; the old "CloudWatch.1 to 14" row is removed. **Corrected 2026-11-20:** Prowler, which implements the benchmark text, reports CIS 4.1 to 4.15 (CloudWatch metric filters and alarms) as **15 failures** because of decision e. They are listed below, under "Failed requirements found by Prowler". (`CloudTrail.5`, CloudWatch Logs on the trail, is an FSBP control only.)
 - **`CloudTrail.7` is in CIS v5.0.0** (control 3.4, "S3 access logging on the CloudTrail bucket") and **fails**. An earlier Phase 4 draft said it was in neither standard; that was wrong. The Tier 1 exception still stands, for the reason given (it needs a second hardened bucket).
 - `Config.1` is CIS 3.3 and FSBP; it fails because of limited types.
 
@@ -73,6 +73,17 @@ Dates are provisional (set 2026-11-15) and use the 90-day maximum from the risk-
 | EC2.7 (also FSBP) | EBS default encryption enabled | Not enabled; no EBS volumes exist | 0 candidate | No EC2 or EBS in the sandbox | follow-up PR (guardrails), decided 2026-11-20 |
 
 **Quick wins (decided 2026-11-20, built in the guardrails quick-wins PR, [component doc](components/account-quick-wins.md); not yet applied):** `EC2.7`, `Account.1`, `IAM.18` and FSBP `SSM.7` (CRITICAL, "block public sharing of SSM documents") are free account settings. They go in the **guardrails** stack as a small follow-up PR after Phase 5 merges, and would turn 4 failures into passes. The `Account.1` contact details go in `guardrails.tfvars` (gitignored) with placeholders in the example file.
+
+### Failed requirements found by Prowler (2026-11-20; not shown as FAILED in Security Hub)
+
+Source: [compliance/prowler-cis-v5.0-summary.md](compliance/prowler-cis-v5.0-summary.md). Target dates use the 90-day maximum from 2026-11-20.
+
+| CIS requirement (Security Hub control) | What it requires | Why it fails | Tier | Compensating control | Target |
+| --- | --- | --- | --- | --- | --- |
+| 2.1.2 (S3.20, shown PASSED with no data) | MFA Delete on S3 buckets | The log bucket has MFA Delete off. It can only be enabled by the root user with root credentials and MFA, and the project has no root access keys (`log-bucket.tf`) | 2 (accepted) | Versioning is Enabled (deleted or overwritten logs are recoverable for `noncurrent_retention_days`); bucket policy restricts writers; log file validation proves tampering; `logbucket-tamper` alert on policy and versioning changes | 2027-02-18 |
+| 1.15 (no Security Hub control) | No IAM policy with full `*:*` administrator rights attached | AWS managed `AdministratorAccess` is attached to exactly one role: the IAM Identity Center administrator role (0 users, 0 groups) | 1 (accepted) | That is the SSO admin path: MFA at SSO login, no IAM users, no long-lived keys. A production fix is a narrower permission set for daily work and a break-glass admin | 2027-02-18 |
+| 3.7 (EC2.6, shown WARNING), 5.2 (EC2.21, WARNING), 5.5 (EC2.2, WARNING) | VPC flow logs; default NACL and default security group restrict traffic | The unused default VPC has no flow logs and permissive defaults. Security Hub could not evaluate them (Config records no EC2/VPC types) | 1 (proposed, pending David: Q-t) | Nothing runs in the default VPC (0 network interfaces) | 2027-02-18 |
+| 4.1 to 4.15 (no Security Hub controls) | CloudWatch metric filters and alarms on 15 event types (unauthorized API calls, sign-in without MFA, root use, IAM and security group changes, ...) | Decision e: CloudTrail does not send logs to CloudWatch Logs (cost) | 1 | EventBridge alerts cover CloudTrail changes (4.5), KMS key changes (4.7), Config changes (4.9) and log-bucket policy changes (4.8, that bucket only). **Not covered:** 4.1, 4.2, 4.3 (root use), 4.4, 4.6, 4.10 to 4.15. Root and sign-in alerts are a v1.1 candidate | 2027-02-18 |
 
 ### Failed controls that are FSBP only
 

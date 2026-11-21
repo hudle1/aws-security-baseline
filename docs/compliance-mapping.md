@@ -24,7 +24,7 @@ How each v1 control **maps to** the CIS AWS Foundations Benchmark and SOC 2 Trus
 | Config KMS key and delivery to the log bucket | KMS.4 | 3.6 (rotation) | CC6.1, CC6.7 |
 | Security Hub (FSBP + CIS v5.0.0) | (the scorecard itself) | None of the 40 v5.0.0 controls is "Security Hub enabled"; it is the means of measuring them | CC7.1, CC7.2 |
 | GuardDuty + S3 Protection | GuardDuty.1 (FSBP). GuardDuty.5, .6, .7, .8, .9, .11, .12, .13 **fail by design** (plans off, decision Q-o) | None in CIS v5.0.0 | CC6.8, CC7.2, CC7.3 |
-| Real-time alerts (EventBridge + encrypted SNS, 6 rules) | (none: not a Security Hub control) | None. CIS v5.0.0 has no CloudWatch metric-filter/alarm controls (verified 2026-11-19), so this goes beyond the benchmark | CC7.2, CC7.3, CC7.4 |
+| Real-time alerts (EventBridge + encrypted SNS, 6 rules) | (none: not a Security Hub control) | Partly. Security Hub's CIS v5.0.0 list has no CloudWatch metric-filter/alarm controls (verified 2026-11-19), but the benchmark text does (CIS 4.1 to 4.15, which Prowler reports as failing, see [prowler-cis-v5.0-summary.md](compliance/prowler-cis-v5.0-summary.md)). These EventBridge alerts cover the intent of 4.5, 4.7, 4.9 and, for the log bucket only, 4.8; they are not CloudWatch metric filters | CC7.2, CC7.3, CC7.4 |
 | Budget alarm (actual + forecast) | (none) | (none) | CC7.2 (anomaly signal) |
 | IR runbook: compromised credentials | (none, procedural) | (none) | CC7.3, CC7.4, CC7.5 |
 | Change management: PRs, branch protection, plan review, CI static checks, no CI credentials | (none, process) | (none) | CC8.1, CC6.8 |

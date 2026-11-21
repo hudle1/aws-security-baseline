@@ -22,5 +22,5 @@ The script is read-only (only `get-`, `describe-` and `list-` calls). It stops i
 
 ## What this evidence does not prove
 
-- `verify.ps1` checks the settings listed in its table, not every Security Hub control. The independent view is the Prowler CIS report in `docs/compliance/`.
+- `verify.ps1` checks the settings listed in its table, not every Security Hub control. The independent view is the Prowler CIS report: [../compliance/prowler-cis-v5.0-summary.md](../compliance/prowler-cis-v5.0-summary.md).
 - `validate-logs` covers hours that already have a digest file (digests are hourly), so the newest hour is not included.
