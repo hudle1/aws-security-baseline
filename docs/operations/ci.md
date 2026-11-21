@@ -71,6 +71,20 @@ gh api repos/hudle1/aws-security-baseline/branches/main/protection --jq ".requir
 
 Rules: no check may have a path filter or an `if:`. A skipped required check counts as passing, and a never-run one blocks the PR forever.
 
+## GitHub-side scanning (outside the workflow file)
+
+Enabled in the repository settings (Security, Advanced Security) and verified through the GitHub API on 2026-11-20:
+
+| Feature | State | Notes |
+| --- | --- | --- |
+| Secret scanning and push protection | Enabled | A push containing a recognised secret is blocked before it lands |
+| Private vulnerability reporting | Enabled | Used by [SECURITY.md](../../SECURITY.md) |
+| Dependency graph and Dependabot alerts | Enabled | Alerts on known-vulnerable dependencies |
+| Dependabot version updates | Configured in `.github/dependabot.yml` | GitHub Actions, Terraform (both stacks) and the pinned checkov. Dependabot *security updates* are a separate setting and are currently off |
+| CodeQL default setup | Configured: language `actions` (the workflow files), default query suite, weekly schedule | First analysis on `main` (2026-11-20): 0 results, 0 open alerts. It is **not** a required check, so it does not gate merges. It did not run on pull requests that changed no workflow files |
+
+**Not required yet:** making CodeQL a required check is a v1.1 item. When done, add the check's exact name (read it from the API as in the section above) to the required checks, and keep the rule that a required check must have no path filter: a CodeQL run that is skipped counts as passing.
+
 ## How to change it safely
 
 - **New check:** add a job with no `paths` or `if`, then add its name to the required checks *after* it has passed once (a required check that has never run blocks every PR).

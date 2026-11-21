@@ -32,6 +32,8 @@ Every number below is a result I measured, with the raw redacted output committe
 
 Two things the comparison with Prowler taught me: a Security Hub "PASSED" can mean *not measured* (7 of its 25 passes are empty), and the benchmark's 15 CloudWatch alarm requirements are failures that Security Hub's list does not show.
 
+*Screenshots follow in a separate pull request (shot list and redaction guide: [docs/images/README.md](docs/images/README.md)).*
+
 <!-- Screenshots: add them to docs/images/ following docs/images/README.md, then show them here, for example:
 ![Security Hub scorecard](docs/images/security-hub-scorecard.png) -->
 
@@ -116,6 +118,7 @@ flowchart LR
 - [Decision records](docs/decisions/README.md): 21 ADRs; [design decisions in my own words](docs/design-decisions.md)
 - [CI and supply-chain hardening](docs/operations/ci.md): no AWS credentials, SHA-pinned actions, `contents: read`, required checks without path filters
 - [Runbook: compromised credentials](docs/operations/runbook-compromised-credentials.md)
+- **GitHub-side protection** (verified 2026-11-20): secret scanning with push protection, private vulnerability reporting ([SECURITY.md](SECURITY.md)), the dependency graph and Dependabot alerts, Dependabot version-update PRs, and CodeQL default setup scanning the GitHub Actions workflows weekly (first run on `main`: 0 alerts). CodeQL is not a required check yet; see the roadmap.
 
 **Known weaknesses, stated up front:** detection is detect-only (a compromised administrator can delete the alert rules; prevention needs Organizations SCPs); root MFA is a virtual device (no hardware key yet); only us-east-1 is watched by GuardDuty, Config and the alerts; the log bucket is erased by a destroy. See the [control tiers](docs/control-tiers.md).
 
@@ -170,7 +173,8 @@ v1 is complete. v1.1, in rough order:
 3. A root `ConsoleLogin` alert, and a FIDO hardware key for the root user ([ADR-019](docs/decisions/019-accept-virtual-root-mfa-for-v1.md)).
 4. Enable GuardDuty Lambda protection when the guardduty-triage project deploys its Lambda ([ADR-015](docs/decisions/015-guardduty-s3-protection-only.md)).
 5. CloudWatch Logs and the CIS 4.1 to 4.15 alarms (decision deferred as Tier 1, [ADR-005](docs/decisions/005-cloudwatch-logs-and-cis-alarms-later.md)).
-6. Run `make.ps1` apply and destroy end to end at the first real teardown and correct the docs where reality differs; re-run Security Hub and Prowler after the default-VPC cleanup ([ADR-020](docs/decisions/020-delete-default-vpcs.md)).
+6. Make CodeQL a required check on `main` (it runs today but does not gate merges).
+7. Run `make.ps1` apply and destroy end to end at the first real teardown and correct the docs where reality differs; re-run Security Hub and Prowler after the default-VPC cleanup ([ADR-020](docs/decisions/020-delete-default-vpcs.md)).
 
 ## 10. Skills demonstrated
 
@@ -204,7 +208,13 @@ I built this with Claude Code, and I treated it as a fast junior engineer workin
 
 ## 12. What I learned
 
-_To be written by David._
+*Written by David.*
+
+**Configured is not the same as proven.** Importing my manually created budget into Terraform revealed a setting I'd forgotten about: a filter that excluded credits. The first plan would have quietly removed it, weakening a cost alarm I rely on to catch compromised credentials. Reviewing the plan line by line caught it. Later, my first theory for a Config delivery failure (the bucket policy) was wrong. The real cause was the KMS key policy, which I found by reading AWS's documentation instead of guessing, and once the cause was clear I restored the stricter condition I had loosened along the way. Debugging shouldn't permanently weaken a control.
+
+**Don't trust a single tool's score.** Security Hub reported controls as "passed" that it had never actually evaluated, including one that hid a real gap; an independent Prowler scan caught it. Live-testing my six alert rules taught a similar lesson from the other direction: every alert fired correctly, but three looked "missing" because Gmail grouped them into an old conversation. Detection is only as good as the person's ability to find and act on it.
+
+**AI builds fast; humans approve.** I built this with Claude Code, and it was a capable partner for writing, explaining and testing. It also overclaimed several times, describing things as proven when they weren't. The guardrails that worked were simple: it couldn't change its own permissions, anything that touched AWS or main needed my approval, and every claim had to be backed by evidence in the repo.
 
 ## License
 

@@ -8,7 +8,7 @@ A portfolio project: Terraform for one personal AWS sandbox account. It is not a
 
 If you find a secret, a real account identifier, or a flaw in the controls or the CI workflow:
 
-1. **Preferred:** use GitHub's private reporting: the repository's **Security** tab, **Report a vulnerability** (this works only when private vulnerability reporting is enabled for the repo; *pending: confirm it is enabled*).
+1. **Preferred:** use GitHub's private reporting: the repository's **Security** tab, **Report a vulnerability** (private vulnerability reporting is enabled for this repository, verified 2026-11-20).
 2. **Otherwise:** open an issue that says only "security report, please contact me" and **do not put details, credentials or exploit steps in the issue**. The author will reply with a private channel.
 
 Expect an acknowledgement within a week; this is a one-person project with no on-call. If you find a live credential, say so first: it must be revoked before anything else.
@@ -25,6 +25,7 @@ Out of scope: the findings already documented as accepted risks in [docs/control
 - Workflow token is `contents: read`; every action is pinned to a full commit SHA; the trigger is `pull_request`, never `pull_request_target`.
 - gitleaks scans the full history on every PR; push protection is on; the pre-commit hook runs gitleaks and `terraform fmt`.
 - `main` is protected: a PR is required, and nine named status checks must pass with the branch up to date.
+- GitHub-side: secret scanning with push protection, the dependency graph and Dependabot alerts, Dependabot version-update PRs (`.github/dependabot.yml`), and CodeQL default setup scanning the GitHub Actions workflows weekly. CodeQL is not yet a required check ([docs/operations/ci.md](docs/operations/ci.md)).
 - No long-lived AWS keys anywhere: access is IAM Identity Center (SSO) with short-lived credentials.
 - Terraform is pinned to the sandbox account (`allowed_account_ids`), and the scripts refuse to run if the SSO profile points at a different account.
 
