@@ -1,0 +1,3 @@
+# Python tools used by CI. Exact versions on purpose; Dependabot (pip ecosystem) opens a
+# PR when a new one is released, so every bump is reviewed and tested before it merges.
+checkov==3.4.5
