@@ -39,6 +39,7 @@ Each page covers: what it is, why we have it, configuration, defining file, how 
 
 | Doc | Purpose | Status |
 | --- | --- | --- |
+| [operations/ci.md](operations/ci.md) | What CI runs, why, how to read a failure, required checks | Written (Phase 6) |
 | `operations/deploy.md` | Prerequisites, access setup including SSO, step-by-step deploy | Planned (needed by Phase 7; started as each phase deploys) |
 | `operations/teardown.md` | `destroy` vs `destroy-all` and what each deletes | Planned (Phase 7) |
 | `operations/common-changes.md` | Safe recipes for routine changes | Planned (grows each phase) |
