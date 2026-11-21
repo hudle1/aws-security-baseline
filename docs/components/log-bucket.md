@@ -41,7 +41,7 @@ The CloudTrail write statement is **not** `AWSLogs/<ACCOUNT_ID>/*`: that would l
 
 ## File that defines it
 
-`infra/baseline/log-bucket.tf`. Checkov skips, each with a reason in the code: `CKV_AWS_18` (server access logging: Tier 1 exception, not in CIS v5.0.0 or FSBP, see [control-tiers.md](../control-tiers.md)), `CKV_AWS_144` (cross-region replication), `CKV2_AWS_62` (event notifications).
+`infra/baseline/log-bucket.tf`. Checkov skips, each with a reason in the code: `CKV_AWS_18` (server access logging: Tier 1 exception; it is CIS v5.0.0 3.4 / Security Hub `CloudTrail.7`, which fails by design, see [control-tiers.md](../control-tiers.md) and [ADR-009](../decisions/009-no-s3-access-logging-on-cloudtrail-bucket.md)), `CKV_AWS_144` (cross-region replication), `CKV2_AWS_62` (event notifications).
 
 ## How to verify it works
 

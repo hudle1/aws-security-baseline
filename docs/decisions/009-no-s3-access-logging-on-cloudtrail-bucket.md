@@ -21,6 +21,7 @@ Option 1: Tier 1 exception. Reasoning: a second bucket would itself need Block P
 
 ## Consequences
 
+- Checked live on 2026-11-20: `CloudTrail.7` belongs to exactly one enabled standard, CIS AWS Foundations v5.0.0 (requirement 3.4), with severity LOW and status FAILED. It is not part of FSBP. The earlier claim "in neither standard" was wrong, and a code comment and one component doc repeated it until 2026-11-20, when both were corrected.
 - `CKV_AWS_18` is skipped in code with this reason. CloudTrail.7 and Prowler 3.4 both FAIL (listed in `control-tiers.md`).
 - Bucket-level actions are still CloudTrail management events; object integrity comes from log file validation.
 - `CloudTrail.5` (CloudWatch Logs) is a separate, FSBP-only control that fails because of Q-e.
