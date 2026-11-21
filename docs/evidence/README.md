@@ -9,6 +9,7 @@ Proof that what the code asks for is what the live sandbox account actually has.
 | [block-public-access-demo.md](block-public-access-demo.md) | Account-level Block Public Access rejects a public bucket policy even on a bucket with no protection of its own | Temporary bucket, public-read policy attempt, cleanup |
 | [guardduty-cloudtrail-logging-disabled.md](guardduty-cloudtrail-logging-disabled.md) | GuardDuty detected the `StopLogging` test: real finding, severity Low, about 22 minutes later | `aws guardduty get-findings`, then archived |
 | [audit-role-read-only.md](audit-role-read-only.md) | The `sandbox-audit` role used by Prowler has only the read-only `SecurityAudit` policy, and a write attempt is denied | `aws iam list-attached-role-policies` plus David's `create-bucket` test |
+| [default-vpc-deletion.md](default-vpc-deletion.md) | The default VPC was deleted in all 17 enabled regions after a dry-run, and none remain | `scripts/delete-default-vpcs.ps1` dry-run, then `-Execute`, then a second dry-run |
 | [teardown-proof.md](teardown-proof.md) | A destroy of the baseline stack is a clean plan: 45 resources, and what could block it | `terraform plan -destroy` (read-only, not applied) |
 
 ## Re-running `verify.ps1`

@@ -1,6 +1,6 @@
 # ADR-020: Delete the default VPC in every enabled region
 
-- **Status:** Accepted (deletion pending approval of the dry-run output)
+- **Status:** Accepted and executed on 2026-11-20
 - **Date:** 2026-11-20
 - **Original question:** Q-t
 - **Recommended by:** Not recorded (options presented by Claude)
@@ -18,7 +18,7 @@ Prowler (with `--scan-unused-services`) fails CIS 3.7 (flow logs), 5.2 (default 
 
 ## Decision
 
-Option 2, extended to **all enabled regions** (17 default VPCs). Decided by David on 2026-11-20. `scripts/delete-default-vpcs.ps1` is dry-run by default and refuses to touch any VPC that has network interfaces, instances, NAT gateways, VPC endpoints or custom security groups, route tables or NACLs. The dry-run on 2026-11-20 found 17 default VPCs, all safe. **Status: deletion runs only after David approves the dry-run output.**
+Option 2, extended to **all enabled regions** (17 default VPCs). Decided by David on 2026-11-20. `scripts/delete-default-vpcs.ps1` is dry-run by default and refuses to touch any VPC that has network interfaces, instances, NAT gateways, VPC endpoints or custom security groups, route tables or NACLs. The dry-run on 2026-11-20 found 17 default VPCs, all safe. **Executed 2026-11-20 after David approved the dry-run output:** 17 of 17 default VPCs deleted, 0 failed, and a second dry-run confirmed 0 remain ([evidence/default-vpc-deletion.md](../evidence/default-vpc-deletion.md)). Each deletion re-checked the safety rules immediately before running.
 
 ## Consequences
 

@@ -68,4 +68,4 @@ A new `apply-baseline` creates everything again, with a **new log bucket name** 
 
 ## Default VPCs (not part of Terraform)
 
-The default VPCs in every enabled region are removed with `scripts\delete-default-vpcs.ps1` (decision [ADR-020](../decisions/020-delete-default-vpcs.md); **status: the dry-run found 17 safe VPCs, deletion pending David's approval**). They are not in Terraform state, so no destroy touches them. To bring one back (free, seconds): `aws ec2 create-default-vpc --region <REGION> --profile sandbox-admin`.
+The default VPCs in every enabled region were deleted on 2026-11-20 with `scripts\delete-default-vpcs.ps1` (decision [ADR-020](../decisions/020-delete-default-vpcs.md), [evidence](../evidence/default-vpc-deletion.md)); 0 remain. They are not in Terraform state, so no destroy touches them. To bring one back (free, seconds): `aws ec2 create-default-vpc --region <REGION> --profile sandbox-admin`.

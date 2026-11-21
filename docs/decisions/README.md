@@ -25,7 +25,7 @@ Each decision that shaped this repo, in a short fixed format: context, options, 
 | [017](017-kms-tamper-rule-matches-any-key.md) | Q-q | The KMS tamper rule matches any key in the account | 2026-11-18 | Accepted |
 | [018](018-free-quick-wins-and-test-finding.md) | Q-r | Fix four free failing controls; handle the test finding | 2026-11-20 | Accepted (implemented; see Consequences) |
 | [019](019-accept-virtual-root-mfa-for-v1.md) | Q-s | IAM.6: accept virtual root MFA for v1; hardware key is a v1.1 item | 2026-11-20 | Accepted for v1 (revisit with the v1.1 hardware key) |
-| [020](020-delete-default-vpcs.md) | Q-t | Delete the default VPC in every enabled region | 2026-11-20 | Accepted (deletion pending approval of the dry-run output) |
+| [020](020-delete-default-vpcs.md) | Q-t | Delete the default VPC in every enabled region | 2026-11-20 | Accepted and executed 2026-11-20 |
 | [021](021-security-hub-fsbp-and-cis-in-scope.md) | - | Security Hub enables both FSBP and CIS AWS Foundations v5.0.0 | 2026-11-15 | Accepted |
 
 ## Adding a decision
